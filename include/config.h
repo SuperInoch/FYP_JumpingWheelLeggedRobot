@@ -1,6 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <Arduino.h>
+
 namespace AppConfig {
 namespace PID {
 constexpr float kPitchKp = -0.18f;
@@ -20,13 +22,13 @@ constexpr unsigned long kMonitorPrintIntervalMs = 100;
 namespace Motor {
 constexpr unsigned long kCanBitratePrimary = 1000000UL;
 constexpr unsigned long kCanBitrateSecondary = 500000UL;
-constexpr bool kSingleMotorTestMode = true;
+constexpr bool kSingleMotorTestMode = false;
 
 // Motor numbering from user request.
-constexpr uint8_t kJointMotorLeftNodeId = 0x01;   // motor 1
-constexpr uint8_t kJointMotorRightNodeId = 0x02;  // motor 2
-constexpr uint8_t kWheelMotorLeftNodeId = 0x03;   // motor 3
-constexpr uint8_t kWheelMotorRightNodeId = 0x04;  // motor 4
+constexpr unsigned char kJointMotorLeftNodeId = 0x01;   // motor 1
+constexpr unsigned char kJointMotorRightNodeId = 0x02;  // motor 2
+constexpr unsigned char kWheelMotorLeftNodeId = 0x03;   // motor 3
+constexpr unsigned char kWheelMotorRightNodeId = 0x04;  // motor 4
 
 // MIT mode limits aligned with lesson values.
 constexpr float kPosMin = -25.12f;
@@ -78,14 +80,18 @@ constexpr unsigned long kUartBaudrate = 115200UL;
 constexpr unsigned long kConnectionTimeoutMs = 200UL;
 
 // Controller deadbands (stick values 0-255, centered at 128)
-constexpr uint8_t kStickDeadband = 15;  // ~6% deadband
-constexpr uint8_t kTriggerDeadband = 5;
+constexpr unsigned char kStickDeadband = 15;  // ~6% deadband
+constexpr unsigned char kTriggerDeadband = 5;
 
 // Joystick to motor command conversion
 // Left stick Y → forward/backward motion
 // Right stick X → turning
 constexpr float kMaxMotorVelocity = 4.0f;      // turns/second
 constexpr float kMaxTurningVelocity = 2.0f;    // turns/second for turning
+constexpr float kForwardScale = 1.0f;
+constexpr float kTurnScale = 0.8f;
+constexpr float kTurboScale = 1.4f;
+constexpr float kMaxLegAngleOffsetRad = 0.35f;
 } // namespace XboxController
 } // namespace AppConfig
 
