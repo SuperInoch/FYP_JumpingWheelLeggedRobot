@@ -71,6 +71,22 @@ constexpr long kMapInputMax = 17000;
 constexpr long kMapOutputMin = 0;
 constexpr long kMapOutputMax = 255;
 } // namespace IMU
+
+namespace XboxController {
+// UART2 communication (pins 16=RX2, 17=TX2)
+constexpr unsigned long kUartBaudrate = 115200UL;
+constexpr unsigned long kConnectionTimeoutMs = 200UL;
+
+// Controller deadbands (stick values 0-255, centered at 128)
+constexpr uint8_t kStickDeadband = 15;  // ~6% deadband
+constexpr uint8_t kTriggerDeadband = 5;
+
+// Joystick to motor command conversion
+// Left stick Y → forward/backward motion
+// Right stick X → turning
+constexpr float kMaxMotorVelocity = 4.0f;      // turns/second
+constexpr float kMaxTurningVelocity = 2.0f;    // turns/second for turning
+} // namespace XboxController
 } // namespace AppConfig
 
 #endif // CONFIG_H
