@@ -12,6 +12,24 @@ constexpr float kOutputMin = -6.0f;
 constexpr float kOutputMax = 6.0f;
 constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
+
+// PID-system ported from the "Controller with PID" style (angle + gyro + speed).
+constexpr float kPitchPidKp = 1.0f;
+constexpr float kPitchPidKi = 0.0f;
+constexpr float kPitchPidKd = 0.0f;
+
+constexpr float kGyroPidKp = 0.06f;
+constexpr float kGyroPidKi = 0.0f;
+constexpr float kGyroPidKd = 0.0f;
+
+constexpr float kSpeedPidKp = 0.7f;
+constexpr float kSpeedPidKi = 0.0f;
+constexpr float kSpeedPidKd = 0.0f;
+
+constexpr float kPidOutputLimit = 8.0f;
+constexpr float kPitchOffsetFromCommandDeg = 8.0f;
+constexpr float kWheelSpeedTargetScale = 2.0f;
+constexpr float kForwardCommandFilterAlpha = 0.2f;
 } // namespace PID
 
 namespace Behavior {

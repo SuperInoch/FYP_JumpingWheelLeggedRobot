@@ -3,6 +3,7 @@
 #include "config.h"
 #include "imu.h"
 #include "motor.h"
+#include "pid.h"
 #include "xbox_controller.h"
 
 IMUManager imu;
@@ -17,10 +18,27 @@ constexpr uint8_t kButtonRB = 5;
 constexpr uint8_t kButtonMenu = 6;
 constexpr uint8_t kButtonView = 7;
 
+PIDController gPitchPid(AppConfig::PID::kPitchPidKp,
+                        AppConfig::PID::kPitchPidKi,
+                        AppConfig::PID::kPitchPidKd);
+PIDController gGyroPid(AppConfig::PID::kGyroPidKp,
+                       AppConfig::PID::kGyroPidKi,
+                       AppConfig::PID::kGyroPidKd);
+PIDController gSpeedPid(AppConfig::PID::kSpeedPidKp,
+                        AppConfig::PID::kSpeedPidKi,
+                        AppConfig::PID::kSpeedPidKd);
+
+float gForwardCmdFiltered = 0.0f;
+unsigned long gLastControlUs = 0;
+
 float clampf(float x, float lo, float hi) {
   if (x < lo) return lo;
   if (x > hi) return hi;
   return x;
+}
+
+float lowPass(float prev, float input, float alpha) {
+  return alpha * input + (1.0f - alpha) * prev;
 }
 
 bool isPressed(uint8_t buttons, uint8_t bit) {
@@ -38,6 +56,10 @@ float axisToUnit(uint8_t raw, uint8_t deadband) {
 void applySafeIdle() {
   MotorControl::setWheelTorques(0.0f, 0.0f);
   MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kLegStartupAngleRad);
+  gPitchPid.reset();
+  gGyroPid.reset();
+  gSpeedPid.reset();
+  gForwardCmdFiltered = 0.0f;
 }
 
 } // namespace
@@ -50,6 +72,14 @@ void setup() {
 
   imu.begin();
   XboxController::begin();
+
+  gPitchPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+  gGyroPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+  gSpeedPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+
+  gPitchPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
+  gGyroPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
+  gSpeedPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
 
   if (!MotorControl::begin()) {
     Serial.println("Motor initialization failed.");
@@ -66,6 +96,7 @@ void setup() {
   }
 
   applySafeIdle();
+  gLastControlUs = micros();
   Serial.println("Xbox control ready: RSY=forward, RSX=turn, LSY=leg angle, Menu=enable, View=stop");
 }
 
@@ -96,6 +127,13 @@ void loop() {
   const bool viewPressed = isPressed(pad.buttons, kButtonView);
   const bool rbPressed = isPressed(pad.buttons, kButtonRB);
 
+  const unsigned long nowUs = micros();
+  float dt = static_cast<float>(nowUs - gLastControlUs) * 1e-6f;
+  if (dt <= 0.0f || dt > 0.2f) {
+    dt = 0.005f;
+  }
+  gLastControlUs = nowUs;
+
   // Edge-triggered enable/disable, similar to the open-source sit/stand behavior.
   if (menuPressed && !gPrevMenuPressed) {
     gDriveEnabled = true;
@@ -120,13 +158,32 @@ void loop() {
     joyY = -joyY;
 
     const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
-    const float forwardTorque = joyY * AppConfig::Motor::kWheelTorqueLimit * AppConfig::XboxController::kForwardScale * turbo;
+    const float forwardCmd = joyY * AppConfig::XboxController::kForwardScale * turbo;
+    gForwardCmdFiltered = lowPass(gForwardCmdFiltered, forwardCmd, AppConfig::PID::kForwardCommandFilterAlpha);
+
+    // PID stack inspired by the open-source PID project:
+    // pitch-angle term + pitch-rate term + speed term.
+    const float desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg +
+                    gForwardCmdFiltered * AppConfig::PID::kPitchOffsetFromCommandDeg;
+    const float pitchTerm = gPitchPid.compute(desiredPitchDeg, imu.data().pitchDeg, dt);
+    const float gyroTerm = gGyroPid.compute(0.0f, imu.data().yawRateDegPerSec, dt);
+
+    const float wheelSpeed = 0.5f *
+      (MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) +
+       MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId));
+    const float desiredSpeed = gForwardCmdFiltered * AppConfig::PID::kWheelSpeedTargetScale;
+    const float speedTerm = gSpeedPid.compute(desiredSpeed, wheelSpeed, dt);
+
+    const float balanceTorque = clampf(pitchTerm + gyroTerm + speedTerm,
+                       -AppConfig::Motor::kWheelTorqueLimit,
+                       AppConfig::Motor::kWheelTorqueLimit);
+
     const float turnTorque = joyX * AppConfig::Motor::kWheelTorqueLimit * AppConfig::XboxController::kTurnScale;
 
-    leftTorqueCmd = clampf(forwardTorque - turnTorque,
+    leftTorqueCmd = clampf(balanceTorque - turnTorque,
                            -AppConfig::Motor::kWheelTorqueLimit,
                            AppConfig::Motor::kWheelTorqueLimit);
-    rightTorqueCmd = clampf(forwardTorque + turnTorque,
+    rightTorqueCmd = clampf(balanceTorque + turnTorque,
                             -AppConfig::Motor::kWheelTorqueLimit,
                             AppConfig::Motor::kWheelTorqueLimit);
 
@@ -158,6 +215,8 @@ void loop() {
     Serial.print(rightTorqueCmd, 3);
     Serial.print(", leg:");
     Serial.print(legAngleCmd, 3);
+    Serial.print(", dt:");
+    Serial.print(dt, 4);
     Serial.print(", rsx:");
     Serial.print(pad.rightStickX);
     Serial.print(", rsy:");
