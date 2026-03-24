@@ -30,11 +30,17 @@ constexpr float kPidOutputLimit = 8.0f;
 constexpr float kPitchOffsetFromCommandDeg = 8.0f;
 constexpr float kWheelSpeedTargetScale = 2.0f;
 constexpr float kForwardCommandFilterAlpha = 0.2f;
+constexpr float kComputeDtResetSec = 0.001f;
+constexpr float kComputeDtMaxSec = 0.5f;
+constexpr float kIntegratorLimitDivisor = 3.0f;
+constexpr float kDefaultOutputMin = -5.0f;
+constexpr float kDefaultOutputMax = 5.0f;
 } // namespace PID
 
 namespace Behavior {
 // Serial debug print interval.
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
+constexpr unsigned long kMainLoopDelayMs = 5;
 } // namespace Behavior
 
 namespace Motor {
@@ -100,6 +106,8 @@ constexpr unsigned long kConnectionTimeoutMs = 200UL;
 // Controller deadbands (stick values 0-255, centered at 128)
 constexpr unsigned char kStickDeadband = 15;  // ~6% deadband
 constexpr unsigned char kTriggerDeadband = 5;
+constexpr int kStickCenter = 128;
+constexpr float kStickNormalizeDen = 127.0f;
 
 // Joystick to motor command conversion
 // Left stick Y → forward/backward motion
@@ -110,6 +118,21 @@ constexpr float kForwardScale = 1.0f;
 constexpr float kTurnScale = 0.8f;
 constexpr float kTurboScale = 1.4f;
 constexpr float kMaxLegAngleOffsetRad = 0.35f;
+
+// Bit mapping in packet byte 7 from ESP32 sender.
+constexpr uint8_t kButtonABit = 0;
+constexpr uint8_t kButtonBBit = 1;
+constexpr uint8_t kButtonXBit = 2;
+constexpr uint8_t kButtonYBit = 3;
+constexpr uint8_t kButtonLbBit = 4;
+constexpr uint8_t kButtonRbBit = 5;
+constexpr uint8_t kButtonMenuBit = 6;
+constexpr uint8_t kButtonViewBit = 7;
+
+// Control timing and startup behavior.
+constexpr float kControlDtFallbackSec = 0.005f;
+constexpr float kControlDtMaxSec = 0.2f;
+constexpr bool kDriveEnabledOnBoot = true;
 } // namespace XboxController
 } // namespace AppConfig
 

@@ -1,5 +1,10 @@
 #include "pid.h"
 
+#include <Arduino.h>
+
+#include "config.h"
+#include "motor.h"
+
 static float clampValue(float value, float minValue, float maxValue) {
   if (value < minValue) {
     return minValue;
@@ -10,9 +15,71 @@ static float clampValue(float value, float minValue, float maxValue) {
   return value;
 }
 
+namespace {
+
+PIDController pitchPid(AppConfig::PID::kPitchPidKp,
+                       AppConfig::PID::kPitchPidKi,
+                       AppConfig::PID::kPitchPidKd);
+PIDController gyroPid(AppConfig::PID::kGyroPidKp,
+                      AppConfig::PID::kGyroPidKi,
+                      AppConfig::PID::kGyroPidKd);
+PIDController speedPid(AppConfig::PID::kSpeedPidKp,
+                       AppConfig::PID::kSpeedPidKi,
+                       AppConfig::PID::kSpeedPidKd);
+
+ControlDebugState gDebug = {};
+
+float forwardCmdFiltered = 0.0f;
+unsigned long lastControlUs = 0;
+
+bool prevMenuPressed = false;
+bool prevViewPressed = false;
+
+bool isPressed(uint8_t buttons, uint8_t bit) {
+  return (buttons & (1U << bit)) != 0;
+}
+
+float lowPass(float prev, float input, float alpha) {
+  return alpha * input + (1.0f - alpha) * prev;
+}
+
+float axisToUnit(uint8_t raw, uint8_t deadband) {
+  const int centered = static_cast<int>(raw) - AppConfig::XboxController::kStickCenter;
+  if (abs(centered) <= deadband) {
+    return 0.0f;
+  }
+  return clampValue(static_cast<float>(centered) / AppConfig::XboxController::kStickNormalizeDen, -1.0f, 1.0f);
+}
+
+void resetPidStates() {
+  pitchPid.reset();
+  gyroPid.reset();
+  speedPid.reset();
+  forwardCmdFiltered = 0.0f;
+}
+
+void applySafeIdle() {
+  MotorControl::setWheelTorques(0.0f, 0.0f);
+  MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kLegStartupAngleRad);
+
+  gDebug.leftTorqueCmd = 0.0f;
+  gDebug.rightTorqueCmd = 0.0f;
+  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad;
+  gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
+  gDebug.pitchTerm = 0.0f;
+  gDebug.gyroTerm = 0.0f;
+  gDebug.speedTerm = 0.0f;
+  gDebug.balanceTorque = 0.0f;
+
+  resetPidStates();
+}
+
+} // namespace
+
 PIDController::PIDController(float kp, float ki, float kd)
-    : kp_(kp), ki_(ki), kd_(kd), integral_(0.0f), previousError_(0.0f), previousOutput_(0.0f), minOutput_(-5.0f),
-      maxOutput_(5.0f), outputRampPerSecond_(0.0f) {}
+    : kp_(kp), ki_(ki), kd_(kd), integral_(0.0f), previousError_(0.0f), previousOutput_(0.0f),
+      minOutput_(AppConfig::PID::kDefaultOutputMin), maxOutput_(AppConfig::PID::kDefaultOutputMax),
+      outputRampPerSecond_(0.0f) {}
 
 void PIDController::setGains(float kp, float ki, float kd) {
   kp_ = kp;
@@ -37,17 +104,19 @@ void PIDController::reset() {
 
 float PIDController::compute(float setpoint, float measurement, float dtSeconds) {
   if (dtSeconds <= 0.0f) {
-    dtSeconds = 0.001f;
+    dtSeconds = AppConfig::PID::kComputeDtResetSec;
   }
-  if (dtSeconds > 0.5f) {
-    dtSeconds = 0.001f;
+  if (dtSeconds > AppConfig::PID::kComputeDtMaxSec) {
+    dtSeconds = AppConfig::PID::kComputeDtResetSec;
   }
 
   const float error = setpoint - measurement;
 
   // Match lesson implementation: Tustin integral with bounded integrator.
   integral_ += ki_ * dtSeconds * 0.5f * (error + previousError_);
-  integral_ = clampValue(integral_, minOutput_ / 3.0f, maxOutput_ / 3.0f);
+  integral_ = clampValue(integral_,
+                         minOutput_ / AppConfig::PID::kIntegratorLimitDivisor,
+                         maxOutput_ / AppConfig::PID::kIntegratorLimitDivisor);
 
   const float derivative = (error - previousError_) / dtSeconds;
   float output = kp_ * error + integral_ + kd_ * derivative;
@@ -67,3 +136,133 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
   previousOutput_ = output;
   return output;
 }
+
+namespace RobotControl {
+
+void begin() {
+  pitchPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+  gyroPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+  speedPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+
+  pitchPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
+  gyroPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
+  speedPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
+
+  gDebug.driveEnabled = AppConfig::XboxController::kDriveEnabledOnBoot;
+  gDebug.xboxConnected = false;
+  gDebug.dtSeconds = AppConfig::XboxController::kControlDtFallbackSec;
+  gDebug.leftTorqueCmd = 0.0f;
+  gDebug.rightTorqueCmd = 0.0f;
+  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad;
+  gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
+  gDebug.pitchTerm = 0.0f;
+  gDebug.gyroTerm = 0.0f;
+  gDebug.speedTerm = 0.0f;
+  gDebug.balanceTorque = 0.0f;
+  gDebug.rightStickX = 128;
+  gDebug.rightStickY = 128;
+  gDebug.leftStickY = 128;
+  gDebug.buttons = 0;
+  gDebug.xboxAgeMs = 0;
+  gDebug.xboxErrorCount = 0;
+
+  prevMenuPressed = false;
+  prevViewPressed = false;
+
+  applySafeIdle();
+  lastControlUs = micros();
+}
+
+void process(const ImuData& imuData,
+             bool xboxConnected,
+             const XboxControllerData& xboxData,
+             uint32_t xboxAgeMs,
+             uint16_t xboxErrorCount) {
+  gDebug.xboxConnected = xboxConnected;
+  gDebug.xboxAgeMs = xboxAgeMs;
+  gDebug.xboxErrorCount = xboxErrorCount;
+
+  const unsigned long nowUs = micros();
+  float dt = static_cast<float>(nowUs - lastControlUs) * 1e-6f;
+  if (dt <= 0.0f || dt > AppConfig::XboxController::kControlDtMaxSec) {
+    dt = AppConfig::XboxController::kControlDtFallbackSec;
+  }
+  lastControlUs = nowUs;
+  gDebug.dtSeconds = dt;
+
+  if (!xboxConnected) {
+    applySafeIdle();
+    return;
+  }
+
+  gDebug.rightStickX = xboxData.rightStickX;
+  gDebug.rightStickY = xboxData.rightStickY;
+  gDebug.leftStickY = xboxData.leftStickY;
+  gDebug.buttons = xboxData.buttons;
+
+  const bool menuPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonMenuBit);
+  const bool viewPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonViewBit);
+  const bool rbPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonRbBit);
+
+  if (menuPressed && !prevMenuPressed) {
+    gDebug.driveEnabled = true;
+  }
+  if (viewPressed && !prevViewPressed) {
+    gDebug.driveEnabled = false;
+  }
+  prevMenuPressed = menuPressed;
+  prevViewPressed = viewPressed;
+
+  if (!gDebug.driveEnabled) {
+    applySafeIdle();
+    return;
+  }
+
+  float joyX = axisToUnit(xboxData.rightStickX, AppConfig::XboxController::kStickDeadband);
+  float joyY = axisToUnit(xboxData.rightStickY, AppConfig::XboxController::kStickDeadband);
+  const float legY = axisToUnit(xboxData.leftStickY, AppConfig::XboxController::kStickDeadband);
+
+  joyY = -joyY;
+
+  const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
+  const float forwardCmd = joyY * AppConfig::XboxController::kForwardScale * turbo;
+  forwardCmdFiltered = lowPass(forwardCmdFiltered, forwardCmd, AppConfig::PID::kForwardCommandFilterAlpha);
+
+  gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg +
+                           forwardCmdFiltered * AppConfig::PID::kPitchOffsetFromCommandDeg;
+  gDebug.pitchTerm = pitchPid.compute(gDebug.desiredPitchDeg, imuData.pitchDeg, dt);
+  gDebug.gyroTerm = gyroPid.compute(0.0f, imuData.yawRateDegPerSec, dt);
+
+  const float wheelSpeed = 0.5f *
+      (MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) +
+       MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId));
+  const float desiredSpeed = forwardCmdFiltered * AppConfig::PID::kWheelSpeedTargetScale;
+  gDebug.speedTerm = speedPid.compute(desiredSpeed, wheelSpeed, dt);
+
+  gDebug.balanceTorque = clampValue(gDebug.pitchTerm + gDebug.gyroTerm + gDebug.speedTerm,
+                                    -AppConfig::Motor::kWheelTorqueLimit,
+                                    AppConfig::Motor::kWheelTorqueLimit);
+
+  const float turnTorque = joyX * AppConfig::Motor::kWheelTorqueLimit * AppConfig::XboxController::kTurnScale;
+  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - turnTorque,
+                                    -AppConfig::Motor::kWheelTorqueLimit,
+                                    AppConfig::Motor::kWheelTorqueLimit);
+  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + turnTorque,
+                                     -AppConfig::Motor::kWheelTorqueLimit,
+                                     AppConfig::Motor::kWheelTorqueLimit);
+
+  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad +
+                       (legY * AppConfig::XboxController::kMaxLegAngleOffsetRad);
+  gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
+                                  -AppConfig::XboxController::kMaxLegAngleOffsetRad,
+                                  AppConfig::XboxController::kMaxLegAngleOffsetRad);
+
+  MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
+  MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
+}
+
+const ControlDebugState& debugState() {
+  return gDebug;
+}
+
+} // namespace RobotControl
