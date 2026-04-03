@@ -5,6 +5,7 @@
 #include "config.h"
 #include "motor.h"
 
+// Generic clamp utility used by PID and control mixing stages.
 static float clampValue(float value, float minValue, float maxValue) {
   if (value < minValue) {
     return minValue;
@@ -35,14 +36,17 @@ unsigned long lastControlUs = 0;
 bool prevMenuPressed = false;
 bool prevViewPressed = false;
 
+// Returns true if the requested button bit is currently set.
 bool isPressed(uint8_t buttons, uint8_t bit) {
   return (buttons & (1U << bit)) != 0;
 }
 
+// First-order low-pass filter for command smoothing.
 float lowPass(float prev, float input, float alpha) {
   return alpha * input + (1.0f - alpha) * prev;
 }
 
+// Converts raw stick byte to normalized [-1, 1] with deadband around center.
 float axisToUnit(uint8_t raw, uint8_t deadband) {
   const int centered = static_cast<int>(raw) - AppConfig::XboxController::kStickCenter;
   if (abs(centered) <= deadband) {
@@ -51,6 +55,7 @@ float axisToUnit(uint8_t raw, uint8_t deadband) {
   return clampValue(static_cast<float>(centered) / AppConfig::XboxController::kStickNormalizeDen, -1.0f, 1.0f);
 }
 
+// Clears all PID internal memory and command filters.
 void resetPidStates() {
   pitchPid.reset();
   gyroPid.reset();
@@ -58,6 +63,7 @@ void resetPidStates() {
   forwardCmdFiltered = 0.0f;
 }
 
+// Commands a safe neutral pose and resets control outputs.
 void applySafeIdle() {
   MotorControl::setWheelTorques(0.0f, 0.0f);
   MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kLegStartupAngleRad);
@@ -76,32 +82,38 @@ void applySafeIdle() {
 
 } // namespace
 
+// Constructs a PID object with default limits and zeroed state.
 PIDController::PIDController(float kp, float ki, float kd)
     : kp_(kp), ki_(ki), kd_(kd), integral_(0.0f), previousError_(0.0f), previousOutput_(0.0f),
       minOutput_(AppConfig::PID::kDefaultOutputMin), maxOutput_(AppConfig::PID::kDefaultOutputMax),
       outputRampPerSecond_(0.0f) {}
 
+    // Updates proportional, integral, and derivative gains.
 void PIDController::setGains(float kp, float ki, float kd) {
   kp_ = kp;
   ki_ = ki;
   kd_ = kd;
 }
 
+// Sets hard output saturation limits for this PID.
 void PIDController::setOutputLimits(float minOutput, float maxOutput) {
   minOutput_ = minOutput;
   maxOutput_ = maxOutput;
 }
 
+// Sets max output slope (units/sec) for slew limiting.
 void PIDController::setOutputRamp(float rampPerSecond) {
   outputRampPerSecond_ = rampPerSecond;
 }
 
+// Resets integral accumulation and previous-step history.
 void PIDController::reset() {
   integral_ = 0.0f;
   previousError_ = 0.0f;
   previousOutput_ = 0.0f;
 }
 
+// Computes one PID update with clamping and optional slew-rate limiting.
 float PIDController::compute(float setpoint, float measurement, float dtSeconds) {
   if (dtSeconds <= 0.0f) {
     dtSeconds = AppConfig::PID::kComputeDtResetSec;
@@ -139,6 +151,7 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
 
 namespace RobotControl {
 
+// Initializes controller limits, defaults, and safe idle state.
 void begin() {
   pitchPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
   gyroPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
@@ -173,6 +186,7 @@ void begin() {
   lastControlUs = micros();
 }
 
+// Executes one full robot control iteration from sensors/input to motor commands.
 void process(const ImuData& imuData,
              bool xboxConnected,
              const XboxControllerData& xboxData,
@@ -261,6 +275,7 @@ void process(const ImuData& imuData,
   MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
 }
 
+// Exposes latest debug/telemetry snapshot to other modules.
 const ControlDebugState& debugState() {
   return gDebug;
 }

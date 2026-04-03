@@ -18,8 +18,14 @@ struct ImuData {
 
 class IMUManager {
 public:
+  // Starts I2C and the MPU6050 sensor.
+  // Output: true if the IMU responds, false if hardware init failed.
   bool begin();
+  // Reads one sensor sample and updates pitch/roll/yaw-rate values.
+  // Output: true when a new sample was processed.
   bool update();
+  // Gives the latest IMU data struct (already computed and cached).
+  // Output: reference to ImuData with raw and fused values.
   const ImuData& data() const;
 
 private:

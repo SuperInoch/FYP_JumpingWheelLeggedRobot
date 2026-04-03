@@ -9,6 +9,7 @@ uint16_t XboxController::errorCount = 0;
 uint8_t XboxController::rxBuffer[XboxController::BUFFER_SIZE] = {};
 uint8_t XboxController::bufferIndex = 0;
 
+// Initializes UART receiver and resets controller state to neutral defaults.
 void XboxController::begin() {
     // Initialize the board-supported hardware UART.
     // UNO R4 Minima exposes Serial1 in the Arduino core.
@@ -29,6 +30,7 @@ void XboxController::begin() {
     bufferIndex = 0;
 }
 
+// Pulls bytes from UART and feeds packet parser state machine.
 bool XboxController::update() {
     bool packetReceived = false;
     
@@ -42,10 +44,12 @@ bool XboxController::update() {
     return packetReceived;
 }
 
+// Returns latest decoded controller payload.
 const XboxControllerData& XboxController::getData() {
     return controllerData;
 }
 
+// Reports connection as active when fresh packets and non-neutral data are present.
 bool XboxController::isConnected() {
     uint32_t timeSinceLastPacket = millis() - lastPacketTime;
     bool hasRecentPacket = timeSinceLastPacket < CONNECTION_TIMEOUT_MS;
@@ -57,14 +61,17 @@ bool XboxController::isConnected() {
     return false;
 }
 
+// Returns packet age in milliseconds.
 uint32_t XboxController::getTimeSinceLastPacket() {
     return millis() - lastPacketTime;
 }
 
+// Returns cumulative checksum/parse error counter.
 uint16_t XboxController::getErrorCount() {
     return errorCount;
 }
 
+// Filters out all-neutral packets to avoid false-positive "connected" states.
 bool XboxController::isDataActive() {
     // Define "neutral" position with deadband
     // Xbox sticks center around 128, but may vary slightly
@@ -93,6 +100,7 @@ bool XboxController::isDataActive() {
     return false;
 }
 
+// Incrementally assembles packets and dispatches valid ones to parser.
 void XboxController::processByte(uint8_t byte) {
     // Look for packet start marker
     if (bufferIndex == 0) {
@@ -123,6 +131,7 @@ void XboxController::processByte(uint8_t byte) {
     }
 }
 
+// Validates packet checksum using XOR over payload bytes.
 bool XboxController::verifyChecksum(const uint8_t* packet) {
     // Simple XOR checksum: sum all data bytes XORed together
     uint8_t checksum = 0;
@@ -132,6 +141,7 @@ bool XboxController::verifyChecksum(const uint8_t* packet) {
     return checksum == packet[PACKET_SIZE - 1];
 }
 
+// Decodes packet payload fields into controllerData.
 void XboxController::parsePacket(const uint8_t* packet) {
     // Packet format:
     // [0] = 0xAA (header)

@@ -55,12 +55,14 @@ float startupJointPos2 = 0.0f;
 HardwareCAN& canIntf = CAN;
 ODriveCAN* odrives[kMotorCount] = {nullptr};
 
+// Clamps scalar command values to configured bounds.
 float clampValue(float x, float lo, float hi) {
     if (x < lo) return lo;
     if (x > hi) return hi;
     return x;
 }
 
+// Maps ODrive node ID to index in local arrays.
 int findMotorIndexByNodeId(uint8_t nodeId) {
     for (int i = 0; i < kMotorCount; ++i) {
         if (kNodeIds[i] == nodeId) {
@@ -224,6 +226,7 @@ bool enableClosedLoopControl() {
 
 // CAN message pump callback - called by Arduino_CAN library's pumpEvents()
 // MUST be in global scope for the linker to find it
+// Routes each raw CAN frame to all active ODrive instances.
 void onCanMessage(const CanMsg& msg) {
     // Dispatch to all registered ODriveCAN objects
     for (int i = 0; i < 4; ++i) {  // kMotorCount = 4
@@ -235,6 +238,7 @@ void onCanMessage(const CanMsg& msg) {
 
 namespace MotorControl {
 
+// Brings up motor subsystem from CAN startup to closed-loop readiness.
 bool begin() {
     // Configure single-motor test mode if enabled
     if (AppConfig::Motor::kSingleMotorTestMode) {
@@ -278,6 +282,7 @@ bool begin() {
     return true;
 }
 
+// Pumps bus traffic and transmits the current command set to all enabled motors.
 void update() {
     if (!motorReady) {
         return;
@@ -310,14 +315,17 @@ void update() {
     }
 }
 
+// Returns true once initialization has completed successfully.
 bool isReady() {
 	return motorReady;
 }
 
+// Applies startup pose and zeros wheel torque as a safe initial command.
 bool initializeRobotPose(float legAngleRad) {
 	return setMirroredLegJointAngles(legAngleRad) && setWheelTorques(0.0f, 0.0f);
 }
 
+// Converts requested leg angle into mirrored joint motor position targets.
 bool setMirroredLegJointAngles(float legAngleRad) {
     const float motorTurnsDelta = legAngleRad * AppConfig::Motor::kJointGearRatio;
     const float joint1Target = startupJointPos1 + motorTurnsDelta;
@@ -338,6 +346,7 @@ bool setMirroredLegJointAngles(float legAngleRad) {
     return true;
 }
 
+// Applies left/right wheel torque commands with clamp and motor sign mapping.
 bool setWheelTorques(float leftTorque, float rightTorque) {
     const float left = clampValue(leftTorque, -AppConfig::Motor::kWheelTorqueLimit, AppConfig::Motor::kWheelTorqueLimit) *
                        AppConfig::Motor::kWheelLeftSign;
@@ -359,6 +368,7 @@ bool setWheelTorques(float leftTorque, float rightTorque) {
     return true;
 }
 
+// Updates per-node command structure for position mode.
 bool setMotorPosition(uint8_t nodeId, float position, float kp, float kd, float velocityFeedforward) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0) {
@@ -374,6 +384,7 @@ bool setMotorPosition(uint8_t nodeId, float position, float kp, float kd, float 
     return true;
 }
 
+// Updates per-node command structure for velocity mode.
 bool setMotorVelocity(uint8_t nodeId, float velocity, float torqueFeedforward) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0) {
@@ -389,6 +400,7 @@ bool setMotorVelocity(uint8_t nodeId, float velocity, float torqueFeedforward) {
     return true;
 }
 
+// Returns last known position for a motor, or zero when unavailable.
 float getMotorPosition(uint8_t nodeId) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0 || !feedback[idx].valid) {
@@ -397,6 +409,7 @@ float getMotorPosition(uint8_t nodeId) {
     return feedback[idx].pos;
 }
 
+// Returns last known velocity for a motor, or zero when unavailable.
 float getMotorVelocity(uint8_t nodeId) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0 || !feedback[idx].valid) {
@@ -405,6 +418,7 @@ float getMotorVelocity(uint8_t nodeId) {
     return feedback[idx].vel;
 }
 
+// Returns last known torque for a motor, or zero when unavailable.
 float getMotorTorque(uint8_t nodeId) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0 || !feedback[idx].valid) {
@@ -413,6 +427,7 @@ float getMotorTorque(uint8_t nodeId) {
     return feedback[idx].torque;
 }
 
+// Indicates whether feedback has been received for the requested node.
 bool hasMotorFeedback(uint8_t nodeId) {
     const int idx = findMotorIndexByNodeId(nodeId);
     if (idx < 0) {
@@ -421,14 +436,17 @@ bool hasMotorFeedback(uint8_t nodeId) {
     return feedback[idx].valid;
 }
 
+// Returns number of command frames transmitted on CAN.
 unsigned long getTxCount() {
     return txCount;
 }
 
+// Returns number of feedback/status events processed from CAN.
 unsigned long getRxCount() {
     return rxCount;
 }
 
+// Returns whether any motor feedback has ever been seen.
 bool hasFeedbackEver() {
     return hasAnyFeedback;
 }

@@ -8,13 +8,21 @@
 
 class PIDController {
 public:
+  // Creates a PID controller.
+  // Input: kp/ki/kd gains.
   PIDController(float kp, float ki, float kd);
 
+  // Input: new kp/ki/kd values.
   void setGains(float kp, float ki, float kd);
+  // Input: min/max output limits after PID compute.
   void setOutputLimits(float minOutput, float maxOutput);
+  // Input: max output slope (units/second), 0 to disable ramp limiting.
   void setOutputRamp(float rampPerSecond);
+  // Clears integrator and previous-step history.
   void reset();
 
+  // Input: desired setpoint, current measurement, and dt seconds.
+  // Output: control value after PID + clamping/ramp limiting.
   float compute(float setpoint, float measurement, float dtSeconds);
 
 private:
@@ -56,12 +64,17 @@ struct ControlDebugState {
 
 namespace RobotControl {
 
+// Initializes controller state and safe startup outputs.
 void begin();
+// Runs one full control step.
+// Input: IMU state + Xbox link/data + packet health info.
+// Output: updates motor command targets and debug telemetry.
 void process(const ImuData& imuData,
              bool xboxConnected,
              const XboxControllerData& xboxData,
              uint32_t xboxAgeMs,
              uint16_t xboxErrorCount);
+// Output: latest debug snapshot for serial monitor/telemetry.
 const ControlDebugState& debugState();
 
 } // namespace RobotControl

@@ -10,6 +10,7 @@ IMUManager imu;
 
 namespace {
 
+// Blocks startup until at least one valid Xbox packet is observed.
 bool waitForXboxSignal() {
   Serial.println("Waiting for Xbox signal from ESP32...");
   while (!XboxController::isConnected()) {
@@ -50,6 +51,7 @@ bool waitForXboxSignal() {
 
 } // namespace
 
+// Initializes serial, sensors, comms, motors, and control pipeline.
 void setup() {
   Serial.begin(115200);
   for (int i = 0; i < 30 && !Serial; ++i) {
@@ -83,6 +85,7 @@ void setup() {
   Serial.println("Control pipeline ready: IMU/Xbox -> PID -> Motor");
 }
 
+// Runs the control loop: acquire state, process control, print telemetry.
 void loop() {
   static unsigned long lastMonitorPrintMs = 0;
 

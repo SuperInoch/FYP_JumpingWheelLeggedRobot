@@ -19,10 +19,13 @@ constexpr float kGyroCoef = 0.98f;
 constexpr float kGyroYLowPassAlpha = 0.005f;
 constexpr float kGyroZDeadband = 1.0f;
 constexpr float kRemoteBalanceOffsetDeg = 0.0f;
+
+// Applies a first-order low-pass filter to smooth noisy sensor values.
 float lowPassFilter(float currentValue, float previousValue, float alpha) {
   return alpha * currentValue + (1.0f - alpha) * previousValue;
 }
 
+// Clamps a signed integer into the uint8 range [0, 255].
 uint8_t clampToByte(long value) {
   if (value < 0) {
     return 0;
@@ -35,6 +38,7 @@ uint8_t clampToByte(long value) {
 
 } // namespace
 
+// Initializes MPU6050 and seeds complementary-filter roll/pitch values.
 bool IMUManager::begin() {
   data_ = {0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -62,6 +66,7 @@ bool IMUManager::begin() {
   return true;
 }
 
+// Reads IMU sensors and updates both raw and fused orientation outputs.
 bool IMUManager::update() {
   int16_t ax = 0;
   int16_t ay = 0;
@@ -123,6 +128,7 @@ bool IMUManager::update() {
   return true;
 }
 
+// Returns the latest IMU sample structure.
 const ImuData& IMUManager::data() const {
   return data_;
 }
