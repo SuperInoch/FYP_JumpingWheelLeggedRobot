@@ -46,7 +46,6 @@ constexpr unsigned long kMainLoopDelayMs = 5;
 namespace Motor {
 constexpr unsigned long kCanBitratePrimary = 1000000UL;
 constexpr unsigned long kCanBitrateSecondary = 500000UL;
-constexpr bool kSingleMotorTestMode = false;
 
 // Motor numbering from user request.
 constexpr unsigned char kJointMotorLeftNodeId = 0x01;   // motor 1

@@ -240,15 +240,6 @@ namespace MotorControl {
 
 // Brings up motor subsystem from CAN startup to closed-loop readiness.
 bool begin() {
-    // Configure single-motor test mode if enabled
-    if (AppConfig::Motor::kSingleMotorTestMode) {
-        motorEnabled[0] = true;
-        motorEnabled[1] = false;
-        motorEnabled[2] = false;
-        motorEnabled[3] = false;
-        Serial.println("[MOTOR] Single-motor test mode: only motor 0 enabled");
-    }
-    
     // Compute startup joint positions
     startupJointPos1 = AppConfig::Motor::kJoint1Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
     startupJointPos2 = AppConfig::Motor::kJoint2Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
