@@ -1,11 +1,12 @@
 #ifndef XBOX_CONTROLLER_H
 #define XBOX_CONTROLLER_H
 
+#include <Arduino.h>
 #include <cstdint>
 #include <HardwareSerial.h>
 
 /**
- * Xbox controller data structure received from ESP32 via UART2
+ * Xbox controller data structure received from ESP32 via UART1
  * Format: Binary packet with left stick, right stick, and button states
  */
 struct XboxControllerData {
@@ -28,18 +29,18 @@ struct XboxControllerData {
 
 /**
  * Xbox Controller receiver - handles UART communication with ESP32
- * Uses Serial2 (Hardware UART2 on Arduino R4 Minima)
+ * Uses Serial1 (hardware UART on Arduino Uno R4 Minima)
  * 
  * Pin connections:
- *   - RX2: Pin 16 (receives data from ESP32 TX)
- *   - TX2: Pin 17 (not used for this receiver, but available for handshake)
+ *   - RX1: Pin 0 (receives data from ESP32 TX)
+ *   - TX1: Pin 1 (not used for this receiver, but available for handshake)
  * 
  * Baudrate: 115200
  */
 class XboxController {
 public:
     /**
-     * Initialize Xbox controller receiver on UART2
+     * Initialize Xbox controller receiver on UART1
      * Call this in setup()
      */
     static void begin();
@@ -80,6 +81,14 @@ public:
      */
     static uint16_t getErrorCount();
     
+    /**
+     * Check if current controller data shows actual activity (not all neutral)
+     * Used to detect if ESPN2 is sending fake/default data
+     * 
+     * @return true if sticks or triggers are noticeably away from center/rest position
+     */
+    static bool isDataActive();
+    
 private:
     static constexpr uint32_t UART_BAUDRATE = 115200;
     static constexpr uint32_t CONNECTION_TIMEOUT_MS = 200;
@@ -110,3 +119,4 @@ private:
 };
 
 #endif // XBOX_CONTROLLER_H
+

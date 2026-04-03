@@ -1,3 +1,5 @@
+#include <Arduino.h>
+#include <cstdlib>
 #include "xbox_controller.h"
 
 // Static member definitions
@@ -8,8 +10,9 @@ uint8_t XboxController::rxBuffer[XboxController::BUFFER_SIZE] = {};
 uint8_t XboxController::bufferIndex = 0;
 
 void XboxController::begin() {
-    // Initialize Serial2 (UART2) on pins 16 (RX2) and 17 (TX2)
-    Serial2.begin(UART_BAUDRATE);
+    // Initialize the board-supported hardware UART.
+    // UNO R4 Minima exposes Serial1 in the Arduino core.
+    Serial1.begin(UART_BAUDRATE);
     
     // Initialize controller data to neutral state
     controllerData.leftStickX = 128;
@@ -29,9 +32,9 @@ void XboxController::begin() {
 bool XboxController::update() {
     bool packetReceived = false;
     
-    // Read all available bytes from Serial2
-    while (Serial2.available()) {
-        uint8_t byte = Serial2.read();
+    // Read all available bytes from Serial1
+    while (Serial1.available()) {
+        uint8_t byte = Serial1.read();
         processByte(byte);
         packetReceived = true;  // At least some data was received
     }
@@ -45,7 +48,13 @@ const XboxControllerData& XboxController::getData() {
 
 bool XboxController::isConnected() {
     uint32_t timeSinceLastPacket = millis() - lastPacketTime;
-    return timeSinceLastPacket < CONNECTION_TIMEOUT_MS;
+    bool hasRecentPacket = timeSinceLastPacket < CONNECTION_TIMEOUT_MS;
+    
+    // Require both recent packet AND active controller data
+    if (hasRecentPacket && isDataActive()) {
+        return true;
+    }
+    return false;
 }
 
 uint32_t XboxController::getTimeSinceLastPacket() {
@@ -54,6 +63,34 @@ uint32_t XboxController::getTimeSinceLastPacket() {
 
 uint16_t XboxController::getErrorCount() {
     return errorCount;
+}
+
+bool XboxController::isDataActive() {
+    // Define "neutral" position with deadband
+    // Xbox sticks center around 128, but may vary slightly
+    const uint8_t NEUTRAL_CENTER = 128;
+    const uint8_t DEADBAND = 20;  // Consider 108-148 as neutral
+    
+    // Check if sticks are significantly away from center
+    if (abs((int)controllerData.leftStickX - NEUTRAL_CENTER) > DEADBAND ||
+        abs((int)controllerData.leftStickY - NEUTRAL_CENTER) > DEADBAND ||
+        abs((int)controllerData.rightStickX - NEUTRAL_CENTER) > DEADBAND ||
+        abs((int)controllerData.rightStickY - NEUTRAL_CENTER) > DEADBAND) {
+        return true;
+    }
+    
+    // Check if triggers are pressed (>10 range out of 0-255)
+    if (controllerData.leftTrigger > 10 || controllerData.rightTrigger > 10) {
+        return true;
+    }
+    
+    // Check if any buttons are pressed (0 = no buttons)
+    if (controllerData.buttons != 0) {
+        return true;
+    }
+    
+    // All values are neutral - likely no real controller input
+    return false;
 }
 
 void XboxController::processByte(uint8_t byte) {
@@ -115,3 +152,4 @@ void XboxController::parsePacket(const uint8_t* packet) {
     controllerData.rightTrigger = packet[6];
     controllerData.buttons = packet[7];
 }
+

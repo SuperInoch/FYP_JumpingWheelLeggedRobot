@@ -8,6 +8,48 @@
 
 IMUManager imu;
 
+namespace {
+
+bool waitForXboxSignal() {
+  Serial.println("Waiting for Xbox signal from ESP32...");
+  while (!XboxController::isConnected()) {
+    XboxController::update();
+
+    static unsigned long lastWaitPrintMs = 0;
+    const unsigned long nowMs = millis();
+    if (nowMs - lastWaitPrintMs >= 500) {
+      lastWaitPrintMs = nowMs;
+      
+      const auto& data = XboxController::getData();
+      Serial.print("xbox-wait[dt=");
+      Serial.print(XboxController::getTimeSinceLastPacket());
+      Serial.print("ms, err=");
+      Serial.print(XboxController::getErrorCount());
+      Serial.print("] sticks: L(");
+      Serial.print(data.leftStickX);
+      Serial.print(",");
+      Serial.print(data.leftStickY);
+      Serial.print(") R(");
+      Serial.print(data.rightStickX);
+      Serial.print(",");
+      Serial.print(data.rightStickY);
+      Serial.print(") triggers: L=");
+      Serial.print(data.leftTrigger);
+      Serial.print(" R=");
+      Serial.print(data.rightTrigger);
+      Serial.print(" buttons=");
+      Serial.println(data.buttons);
+    }
+
+    delay(5);
+  }
+
+  Serial.println("Xbox signal received. Starting robot.");
+  return true;
+}
+
+} // namespace
+
 void setup() {
   Serial.begin(115200);
   for (int i = 0; i < 30 && !Serial; ++i) {
@@ -16,6 +58,12 @@ void setup() {
 
   imu.begin();
   XboxController::begin();
+
+  if (!waitForXboxSignal()) {
+    while (true) {
+      delay(100);
+    }
+  }
 
   if (!MotorControl::begin()) {
     Serial.println("Motor initialization failed.");
