@@ -41,11 +41,19 @@ namespace Behavior {
 // Serial debug print interval.
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
 constexpr unsigned long kMainLoopDelayMs = 5;
+// If true, setup waits for Xbox packets before enabling motors.
+constexpr bool kRequireXboxSignalOnStartup = true;
 } // namespace Behavior
 
 namespace Motor {
 constexpr unsigned long kCanBitratePrimary = 1000000UL;
 constexpr unsigned long kCanBitrateSecondary = 500000UL;
+
+// Per-motor enable switches for staged bring-up.
+constexpr bool kEnableMotor1 = true;
+constexpr bool kEnableMotor2 = true;
+constexpr bool kEnableMotor3 = false;
+constexpr bool kEnableMotor4 = false;
 
 // Motor numbering from user request.
 constexpr unsigned char kJointMotorLeftNodeId = 0x01;   // motor 1

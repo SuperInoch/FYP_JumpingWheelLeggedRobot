@@ -61,10 +61,14 @@ void setup() {
   imu.begin();
   XboxController::begin();
 
-  if (!waitForXboxSignal()) {
-    while (true) {
-      delay(100);
+  if (AppConfig::Behavior::kRequireXboxSignalOnStartup) {
+    if (!waitForXboxSignal()) {
+      while (true) {
+        delay(100);
+      }
     }
+  } else {
+    Serial.println("Skipping Xbox startup check (kRequireXboxSignalOnStartup=false)");
   }
 
   if (!MotorControl::begin()) {

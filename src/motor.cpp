@@ -45,7 +45,12 @@ bool motorReady = false;
 bool allMotorsHealthy = false;
 unsigned long txCount = 0;
 unsigned long rxCount = 0;
-bool motorEnabled[kMotorCount] = {true, true, true, true};
+bool motorEnabled[kMotorCount] = {
+    AppConfig::Motor::kEnableMotor1,
+    AppConfig::Motor::kEnableMotor2,
+    AppConfig::Motor::kEnableMotor3,
+    AppConfig::Motor::kEnableMotor4,
+};
 bool hasAnyFeedback = false;
 
 float startupJointPos1 = 0.0f;
@@ -155,20 +160,30 @@ bool waitForHeartbeats(uint32_t timeoutMs) {
         
         pumpEvents(canIntf);
         
-        // Check if we've received heartbeat from all enabled motors
-        bool allReceived = true;
+        // Request feedback for any enabled motor that has not reported yet.
         for (int i = 0; i < kMotorCount; ++i) {
             if (!motorEnabled[i]) continue;
             if (feedback[i].valid == false && odrives[i] != nullptr) {
-                // Try to request feedback to trigger heartbeat
+                // Poll encoder estimates to trigger feedback callback.
                 Get_Encoder_Estimates_msg_t dummy;
                 odrives[i]->getFeedback(dummy, 10);
             }
         }
-        
-        allReceived = hasAnyFeedback;
+
+        // Require feedback from every enabled motor, not just any motor.
+        bool allReceived = true;
+        for (int i = 0; i < kMotorCount; ++i) {
+            if (!motorEnabled[i]) {
+                continue;
+            }
+            if (!feedback[i].valid) {
+                allReceived = false;
+                break;
+            }
+        }
+
         if (allReceived) {
-            Serial.println("Heartbeats received!");
+            Serial.println("All enabled motors are responding.");
             return true;
         }
         
@@ -185,9 +200,20 @@ bool waitForHeartbeats(uint32_t timeoutMs) {
         delay(10);
     }
     
-    Serial.print("ERROR: Timeout waiting for heartbeat! (Received ");
+    Serial.print("ERROR: Timeout waiting for motor feedback! (Received ");
     Serial.print(rawFrameCount);
     Serial.println(" total CAN frames)");
+
+    for (int i = 0; i < kMotorCount; ++i) {
+        if (!motorEnabled[i]) {
+            continue;
+        }
+        Serial.print("  Node ");
+        Serial.print(kNodeIds[i]);
+        Serial.print(" feedback: ");
+        Serial.println(feedback[i].valid ? "OK" : "MISSING");
+    }
+
     return false;
 }
 
