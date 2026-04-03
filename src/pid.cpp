@@ -214,6 +214,7 @@ void process(const ImuData& imuData,
   gDebug.leftStickY = xboxData.leftStickY;
   gDebug.buttons = xboxData.buttons;
 
+  const bool aPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonABit);
   const bool menuPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonMenuBit);
   const bool viewPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonViewBit);
   const bool rbPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonRbBit);
@@ -232,9 +233,12 @@ void process(const ImuData& imuData,
     return;
   }
 
-  float joyX = axisToUnit(xboxData.rightStickX, AppConfig::XboxController::kStickDeadband);
-  float joyY = axisToUnit(xboxData.rightStickY, AppConfig::XboxController::kStickDeadband);
-  const float legY = axisToUnit(xboxData.leftStickY, AppConfig::XboxController::kStickDeadband);
+  // New mapping:
+  // - Left stick Y: forward/backward
+  // - Left stick X: turning
+  // - A button: jump command (leg-angle pulse while held)
+  float joyX = axisToUnit(xboxData.leftStickX, AppConfig::XboxController::kStickDeadband);
+  float joyY = axisToUnit(xboxData.leftStickY, AppConfig::XboxController::kStickDeadband);
 
   joyY = -joyY;
 
@@ -265,8 +269,8 @@ void process(const ImuData& imuData,
                                      -AppConfig::Motor::kWheelTorqueLimit,
                                      AppConfig::Motor::kWheelTorqueLimit);
 
-  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad +
-                       (legY * AppConfig::XboxController::kMaxLegAngleOffsetRad);
+  const float jumpOffset = aPressed ? AppConfig::XboxController::kMaxLegAngleOffsetRad : 0.0f;
+  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad + jumpOffset;
   gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
                                   -AppConfig::XboxController::kMaxLegAngleOffsetRad,
                                   AppConfig::XboxController::kMaxLegAngleOffsetRad);
