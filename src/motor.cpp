@@ -8,8 +8,9 @@
 namespace {
 
 // ODrive CAN configuration
-constexpr uint32_t kCanBaudrate = 500000;  // 500 kbps
+constexpr uint32_t kCanBaudrate = AppConfig::Motor::kCanBitrateSecondary;
 constexpr uint8_t kMotorCount = 4;
+constexpr uint32_t kFeedbackPollIntervalMs = 20;  // 50 Hz poll request pacing
 
 // ODrive node IDs (must match ODrive Web GUI config)
 const uint8_t kNodeIds[kMotorCount] = {
@@ -151,34 +152,23 @@ bool waitForHeartbeats(uint32_t timeoutMs) {
     Serial.println("Waiting for ODrive heartbeats...");
     unsigned long startMs = millis();
     unsigned long lastPrintMs = startMs;
-    int rawFrameCount = 0;
+    unsigned long lastFeedbackPollMs = startMs;
     
     while (millis() - startMs < timeoutMs) {
-        // Count raw CAN frames before pumping
-        int framesThisIteration = 0;
-        while (canIntf.available() > 0) {
-            CanMsg msg = canIntf.read();
-            rawFrameCount++;
-            framesThisIteration++;
-            
-            // Log raw frames for diagnostics
-            if (framesThisIteration <= 5) {  // Only print first 5 to avoid spam
-                Serial.print("  Raw CAN frame: ID=0x");
-                Serial.print(msg.id, HEX);
-                Serial.print(" DLC=");
-                Serial.println(msg.data_length);
-            }
-        }
-        
+        // Let ODrive callbacks consume incoming CAN traffic.
         pumpEvents(canIntf);
         
         // Request feedback for any enabled motor that has not reported yet.
-        for (int i = 0; i < kMotorCount; ++i) {
-            if (!motorEnabled[i]) continue;
-            if (feedback[i].valid == false && odrives[i] != nullptr) {
-                // Poll encoder estimates to trigger feedback callback.
-                Get_Encoder_Estimates_msg_t dummy;
-                odrives[i]->getFeedback(dummy, 10);
+        const unsigned long nowMs = millis();
+        if (nowMs - lastFeedbackPollMs >= kFeedbackPollIntervalMs) {
+            lastFeedbackPollMs = nowMs;
+            for (int i = 0; i < kMotorCount; ++i) {
+                if (!motorEnabled[i]) continue;
+                if (feedback[i].valid == false && odrives[i] != nullptr) {
+                    // Poll encoder estimates at a limited rate to avoid bus flooding.
+                    Get_Encoder_Estimates_msg_t dummy;
+                    odrives[i]->getFeedback(dummy, 10);
+                }
             }
         }
 
@@ -205,16 +195,14 @@ bool waitForHeartbeats(uint32_t timeoutMs) {
             unsigned long elapsedMs = millis() - startMs;
             Serial.print("  [");
             Serial.print(elapsedMs);
-            Serial.print("ms] Total CAN frames seen: ");
-            Serial.println(rawFrameCount);
+            Serial.print("ms] RX callbacks: ");
+            Serial.println(rxCount);
         }
         
         delay(10);
     }
     
-    Serial.print("ERROR: Timeout waiting for motor feedback! (Received ");
-    Serial.print(rawFrameCount);
-    Serial.println(" total CAN frames)");
+    Serial.println("ERROR: Timeout waiting for motor feedback!");
 
     for (int i = 0; i < kMotorCount; ++i) {
         Serial.print("  Node ");
@@ -358,8 +346,8 @@ bool initializeRobotPose(float legAngleRad) {
 // Converts requested leg angle into mirrored joint motor position targets.
 bool setMirroredLegJointAngles(float legAngleRad) {
     const float motorTurnsDelta = legAngleRad * AppConfig::Motor::kJointGearRatio;
-    const float joint1Target = startupJointPos1 + motorTurnsDelta;
-    const float joint2Target = startupJointPos2 - motorTurnsDelta;
+    const float joint1Target = startupJointPos1 + (AppConfig::Motor::kJoint1LegDirectionSign * motorTurnsDelta);
+    const float joint2Target = startupJointPos2 + (AppConfig::Motor::kJoint2LegDirectionSign * motorTurnsDelta);
     
     commands[0].position = joint1Target;
     commands[0].velocity = 0.0f;
