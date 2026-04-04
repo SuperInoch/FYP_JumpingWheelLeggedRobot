@@ -229,7 +229,17 @@ void process(const ImuData& imuData,
   prevViewPressed = viewPressed;
 
   if (!gDebug.driveEnabled) {
-    applySafeIdle();
+    const float jumpOffset = aPressed ? AppConfig::XboxController::kMaxLegAngleOffsetRad : 0.0f;
+    gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad + jumpOffset;
+    gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
+                                    -AppConfig::XboxController::kMaxLegAngleOffsetRad,
+                                    AppConfig::XboxController::kMaxLegAngleOffsetRad);
+
+    // Keep wheels idle when drive is disabled, but allow A-button leg motion for testing.
+    gDebug.leftTorqueCmd = 0.0f;
+    gDebug.rightTorqueCmd = 0.0f;
+    MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
+    MotorControl::setWheelTorques(0.0f, 0.0f);
     return;
   }
 
