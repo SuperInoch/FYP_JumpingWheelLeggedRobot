@@ -87,8 +87,8 @@ constexpr float kJointKd = 1.0f;
 
 // Direction signs for mirrored leg-angle offset commands.
 // Keep opposite signs for mirrored motion; flip a sign if one joint moves the wrong way.
-constexpr float kJoint1LegDirectionSign = 1.0f;
-constexpr float kJoint2LegDirectionSign = -1.0f;
+constexpr float kJoint1LegDirectionSign = -1.0f;
+constexpr float kJoint2LegDirectionSign = 1.0f;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
