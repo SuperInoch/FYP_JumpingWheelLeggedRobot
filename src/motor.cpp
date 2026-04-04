@@ -115,7 +115,9 @@ void onFeedback(Get_Encoder_Estimates_msg_t& msg, void* user_data) {
 
 // Initialize ODrive objects and bring up CAN bus
 bool setupCan() {
-    Serial.println("Initializing CAN at 500 kbps...");
+    Serial.print("Initializing CAN at ");
+    Serial.print(kCanBaudrate);
+    Serial.println(" bps...");
     
     if (!canIntf.begin((CanBitRate)kCanBaudrate)) {
         Serial.println("ERROR: CAN initialization failed!");

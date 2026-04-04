@@ -47,7 +47,7 @@ constexpr bool kRequireXboxSignalOnStartup = false;
 
 namespace Motor {
 constexpr unsigned long kCanBitratePrimary = 1000000UL;
-constexpr unsigned long kCanBitrateSecondary = 500000UL;
+constexpr unsigned long kCanBitrateSecondary = 250000UL;
 
 // Per-motor enable switches for staged bring-up.
 constexpr bool kEnableMotor1 = true;
