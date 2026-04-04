@@ -39,12 +39,20 @@ float getMotorTorque(uint8_t nodeId);
 // Input: nodeId to query.
 // Output: true if feedback has ever been received for that motor.
 bool hasMotorFeedback(uint8_t nodeId);
+// Input: nodeId to query.
+// Output: last heartbeat axis state (0 if unavailable).
+uint8_t getAxisState(uint8_t nodeId);
+// Input: nodeId to query.
+// Output: last heartbeat axis error bitmask (0 if unavailable).
+uint32_t getAxisError(uint8_t nodeId);
 
 // Compatibility helper used by callers that expect a feedback-ready flag.
 bool hasNewFeedback();
 
 // Output: total number of transmitted command frames.
 unsigned long getTxCount();
+// Output: total number of failed command transmissions.
+unsigned long getTxFailCount();
 // Output: total number of received feedback/status callbacks.
 unsigned long getRxCount();
 // Output: true if at least one motor feedback packet has ever been seen.

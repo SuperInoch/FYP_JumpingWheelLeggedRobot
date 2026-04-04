@@ -40,11 +40,15 @@ struct MotorFeedback {
 };
 
 MotorFeedback feedback[kMotorCount] = {};
+uint8_t lastAxisState[kMotorCount] = {};
+uint32_t lastAxisError[kMotorCount] = {};
+bool heartbeatValid[kMotorCount] = {};
 
 // State tracking (moved outside to allow onCanMessage access)
 bool motorReady = false;
 bool allMotorsHealthy = false;
 unsigned long txCount = 0;
+unsigned long txFailCount = 0;
 unsigned long rxCount = 0;
 bool motorEnabled[kMotorCount] = {
     AppConfig::Motor::kEnableMotor1,
@@ -95,6 +99,9 @@ void onHeartbeat(Heartbeat_msg_t& msg, void* user_data) {
     uint8_t nodeId = reinterpret_cast<uintptr_t>(user_data);
     int idx = findMotorIndexByNodeId(nodeId);
     if (idx >= 0) {
+        lastAxisState[idx] = msg.Axis_State;
+        lastAxisError[idx] = msg.Axis_Error;
+        heartbeatValid[idx] = true;
         ++rxCount;
         hasAnyFeedback = true;
     }
@@ -249,6 +256,64 @@ bool enableClosedLoopControl() {
     return true;
 }
 
+// Forces deterministic controller modes so host commands always match motor behavior.
+bool configureControllerModes() {
+    Serial.println("Configuring controller modes...");
+    bool ok = true;
+
+    for (int i = 0; i < kMotorCount; ++i) {
+        if (!motorEnabled[i] || odrives[i] == nullptr) {
+            continue;
+        }
+
+        const uint8_t controlMode = (i < 2)
+            ? static_cast<uint8_t>(CONTROL_MODE_POSITION_CONTROL)
+            : static_cast<uint8_t>(CONTROL_MODE_TORQUE_CONTROL);
+        const uint8_t inputMode = static_cast<uint8_t>(INPUT_MODE_PASSTHROUGH);
+
+        if (!odrives[i]->setControllerMode(controlMode, inputMode)) {
+            Serial.print("WARNING: Failed controller mode set for node ");
+            Serial.println(kNodeIds[i]);
+            ok = false;
+        }
+
+        pumpEvents(canIntf);
+        delay(2);
+    }
+
+    return ok;
+}
+
+// Sends one motor command with short retries so later nodes are not starved by TX mailbox contention.
+bool sendCommandWithRetry(int motorIndex, const MotorCommand& cmd) {
+    constexpr uint8_t kMaxAttempts = 3;
+
+    for (uint8_t attempt = 0; attempt < kMaxAttempts; ++attempt) {
+        bool sent = false;
+
+        if (motorIndex < 2) {
+            if (cmd.velocityMode) {
+                sent = odrives[motorIndex]->setVelocity(cmd.velocity, cmd.torque);
+            } else {
+                sent = odrives[motorIndex]->setPosition(cmd.position, cmd.velocity, cmd.torque);
+            }
+        } else {
+            sent = odrives[motorIndex]->setTorque(cmd.torque);
+        }
+
+        if (sent) {
+            ++txCount;
+            return true;
+        }
+
+        pumpEvents(canIntf);
+        delay(1);
+    }
+
+    ++txFailCount;
+    return false;
+}
+
 } // namespace
 
 // CAN message pump callback - called by Arduino_CAN library's pumpEvents()
@@ -295,6 +360,10 @@ bool begin() {
         Serial.println("WARNING: Some motors may not be in closed-loop control");
     }
     
+    if (!configureControllerModes()) {
+        Serial.println("WARNING: Some motors may not accept requested control modes");
+    }
+    
     motorReady = true;
     allMotorsHealthy = true;
     
@@ -319,19 +388,7 @@ void update() {
         
         const MotorCommand& cmd = commands[i];
         
-        // Joints (0,1) can run either position or velocity mode; wheels (2,3) use torque mode.
-        if (i < 2) {
-            if (cmd.velocityMode) {
-                odrives[i]->setVelocity(cmd.velocity, cmd.torque);
-            } else {
-                odrives[i]->setPosition(cmd.position, cmd.velocity);
-            }
-        } else {
-            // Wheel motors: torque control
-            odrives[i]->setTorque(cmd.torque);
-        }
-        
-        ++txCount;
+        sendCommandWithRetry(i, cmd);
     }
 }
 
@@ -456,9 +513,32 @@ bool hasMotorFeedback(uint8_t nodeId) {
     return feedback[idx].valid;
 }
 
+// Returns last heartbeat axis state for a motor, or zero when unavailable.
+uint8_t getAxisState(uint8_t nodeId) {
+    const int idx = findMotorIndexByNodeId(nodeId);
+    if (idx < 0 || !heartbeatValid[idx]) {
+        return 0;
+    }
+    return lastAxisState[idx];
+}
+
+// Returns last heartbeat axis error flags for a motor, or zero when unavailable.
+uint32_t getAxisError(uint8_t nodeId) {
+    const int idx = findMotorIndexByNodeId(nodeId);
+    if (idx < 0 || !heartbeatValid[idx]) {
+        return 0;
+    }
+    return lastAxisError[idx];
+}
+
 // Returns number of command frames transmitted on CAN.
 unsigned long getTxCount() {
     return txCount;
+}
+
+// Returns number of command frames that could not be sent after retries.
+unsigned long getTxFailCount() {
+    return txFailCount;
 }
 
 // Returns number of feedback/status events processed from CAN.
