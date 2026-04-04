@@ -359,7 +359,7 @@ bool begin() {
     if (!enableClosedLoopControl()) {
         Serial.println("WARNING: Some motors may not be in closed-loop control");
     }
-    
+
     if (!configureControllerModes()) {
         Serial.println("WARNING: Some motors may not accept requested control modes");
     }
