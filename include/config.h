@@ -42,7 +42,7 @@ namespace Behavior {
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
 constexpr unsigned long kMainLoopDelayMs = 5;
 // If true, setup waits for Xbox packets before enabling motors.
-constexpr bool kRequireXboxSignalOnStartup = true;
+constexpr bool kRequireXboxSignalOnStartup = false;
 } // namespace Behavior
 
 namespace Motor {

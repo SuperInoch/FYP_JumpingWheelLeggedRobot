@@ -60,6 +60,18 @@ float startupJointPos2 = 0.0f;
 HardwareCAN& canIntf = CAN;
 ODriveCAN* odrives[kMotorCount] = {nullptr};
 
+void printMotorEnableConfig() {
+    Serial.println("[MOTOR] Node enable map:");
+    for (int i = 0; i < kMotorCount; ++i) {
+        Serial.print("  index ");
+        Serial.print(i);
+        Serial.print(" -> node ");
+        Serial.print(kNodeIds[i]);
+        Serial.print(", enabled=");
+        Serial.println(motorEnabled[i] ? "YES" : "NO");
+    }
+}
+
 // Clamps scalar command values to configured bounds.
 float clampValue(float x, float lo, float hi) {
     if (x < lo) return lo;
@@ -205,12 +217,11 @@ bool waitForHeartbeats(uint32_t timeoutMs) {
     Serial.println(" total CAN frames)");
 
     for (int i = 0; i < kMotorCount; ++i) {
-        if (!motorEnabled[i]) {
-            continue;
-        }
         Serial.print("  Node ");
         Serial.print(kNodeIds[i]);
-        Serial.print(" feedback: ");
+        Serial.print(" [enabled=");
+        Serial.print(motorEnabled[i] ? "YES" : "NO");
+        Serial.print("] feedback: ");
         Serial.println(feedback[i].valid ? "OK" : "MISSING");
     }
 
@@ -266,6 +277,8 @@ namespace MotorControl {
 
 // Brings up motor subsystem from CAN startup to closed-loop readiness.
 bool begin() {
+    printMotorEnableConfig();
+
     // Compute startup joint positions
     startupJointPos1 = AppConfig::Motor::kJoint1Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
     startupJointPos2 = AppConfig::Motor::kJoint2Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
