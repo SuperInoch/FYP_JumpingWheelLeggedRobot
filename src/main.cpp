@@ -92,13 +92,25 @@ void setup() {
 // Runs the control loop: acquire state, process control, print telemetry.
 void loop() {
   static unsigned long lastMonitorPrintMs = 0;
+  static bool prevAPressed = false;
 
   imu.update();
   MotorControl::update();
   XboxController::update();
+
+  const XboxControllerData& xboxData = XboxController::getData();
+  const bool aPressed = (xboxData.buttons & (1U << AppConfig::XboxController::kButtonABit)) != 0;
+  if (aPressed && !prevAPressed) {
+    Serial.print("Jump! joint-fb m1=");
+    Serial.print(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId), 3);
+    Serial.print(", m2=");
+    Serial.println(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId), 3);
+  }
+  prevAPressed = aPressed;
+
   RobotControl::process(imu.data(),
                         XboxController::isConnected(),
-                        XboxController::getData(),
+                        xboxData,
                         XboxController::getTimeSinceLastPacket(),
                         XboxController::getErrorCount());
 
