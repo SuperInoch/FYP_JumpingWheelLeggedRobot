@@ -26,6 +26,9 @@ bool setMotorPosition(uint8_t nodeId, float position, float kp, float kd, float 
 // Input: nodeId, target velocity, and optional torque feedforward.
 // Output: true if nodeId exists and command was stored.
 bool setMotorVelocity(uint8_t nodeId, float velocity, float torqueFeedforward = 0.0f);
+// Input: nodeId and absolute encoder position to assign.
+// Output: true if nodeId exists and the absolute position command was stored.
+bool setMotorAbsolutePosition(uint8_t nodeId, float absolutePosition);
 
 // Input: nodeId to query.
 // Output: latest position estimate (0.0 if unavailable).

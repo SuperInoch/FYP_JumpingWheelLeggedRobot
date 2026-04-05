@@ -11,6 +11,21 @@ IMUManager imu;
 
 namespace {
 
+float calibrationMotor1Pos = 0.0f;
+float calibrationMotor2Pos = 0.0f;
+bool calibrationReferenceValid = false;
+
+void captureCalibrationReference() {
+  calibrationMotor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+  calibrationMotor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+  calibrationReferenceValid = true;
+
+  Serial.print("Calibration reference locked: m1-pos=");
+  Serial.print(calibrationMotor1Pos, 3);
+  Serial.print(", m2-pos=");
+  Serial.println(calibrationMotor2Pos, 3);
+}
+
 // Blocks startup until at least one valid Xbox packet is observed.
 bool waitForXboxSignal() {
   Serial.println("Waiting for Xbox signal from ESP32...");
@@ -99,6 +114,8 @@ void setup() {
       delay(100);
     }
   }
+
+  captureCalibrationReference();
 
   RobotControl::begin();
   Serial.println("Control pipeline ready: IMU/Xbox -> PID -> Motor");

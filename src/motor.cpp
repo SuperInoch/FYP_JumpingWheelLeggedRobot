@@ -477,6 +477,16 @@ bool setMotorVelocity(uint8_t nodeId, float velocity, float torqueFeedforward) {
     return true;
 }
 
+// Assigns a new absolute encoder position for a node.
+bool setMotorAbsolutePosition(uint8_t nodeId, float absolutePosition) {
+    const int idx = findMotorIndexByNodeId(nodeId);
+    if (idx < 0 || odrives[idx] == nullptr) {
+        return false;
+    }
+
+    return odrives[idx]->setAbsolutePosition(absolutePosition);
+}
+
 // Returns last known position for a motor, or zero when unavailable.
 float getMotorPosition(uint8_t nodeId) {
     const int idx = findMotorIndexByNodeId(nodeId);
