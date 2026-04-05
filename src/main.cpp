@@ -85,6 +85,14 @@ void setup() {
     }
   }
 
+  // Safety check: verify joint angles are within physical limits
+  if (!MotorControl::checkJointLimits()) {
+    Serial.println("Joint limit check failed.");
+    while (true) {
+      delay(100);
+    }
+  }
+
   RobotControl::begin();
   Serial.println("Control pipeline ready: IMU/Xbox -> PID -> Motor");
 }

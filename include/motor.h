@@ -60,6 +60,12 @@ bool hasFeedbackEver();
 // Compatibility helper for legacy "TX health" checks.
 bool lastTxSucceeded();
 
+// Safety: Read current joint angles and check against physical limits.
+// Returns true if both joints are within safe range.
+// If limits exceeded: disables motors, prints error, and halts controller.
+// Accounts for motor direction inversion (motor1 clockwise, motor2 anti-clockwise).
+bool checkJointLimits();
+
 } // namespace MotorControl
 
 #endif // MOTOR_H

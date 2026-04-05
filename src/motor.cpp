@@ -563,4 +563,67 @@ bool lastTxSucceeded() {
     return hasAnyFeedback;
 }
 
+// Safety: Check joint angles against physical limits.
+// Reads current motor positions, converts to logical joint angles (accounting for direction),
+// and verifies both are within [kMinJointAngle, kMaxJointAngle].
+// Motor 1 is clockwise (sign=-1), Motor 2 is anti-clockwise (sign=1).
+// If any limit is exceeded, instantly disables motors, prints critical error, and halts.
+bool checkJointLimits() {
+    // Get current motor positions (in motor turns from encoder feedback)
+    const float motor1Pos = getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float motor2Pos = getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+    
+    // Convert motor positions to logical joint angles (radians).
+    // Inverse of: motor_pos = startupPos + (joint_angle * gearRatio * directionSign)
+    const float jointAngle1 = (motor1Pos - startupJointPos1) / 
+                              (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint1LegDirectionSign);
+    const float jointAngle2 = (motor2Pos - startupJointPos2) / 
+                              (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint2LegDirectionSign);
+    
+    // Check if both angles are within safe limits
+    const bool angle1Safe = (jointAngle1 >= AppConfig::Motor::kMinJointAngle) && 
+                             (jointAngle1 <= AppConfig::Motor::kMaxJointAngle);
+    const bool angle2Safe = (jointAngle2 >= AppConfig::Motor::kMinJointAngle) && 
+                             (jointAngle2 <= AppConfig::Motor::kMaxJointAngle);
+    
+    if (!angle1Safe || !angle2Safe) {
+        // CRITICAL SAFETY FAILURE: Joint angle out of bounds
+        Serial.println("\n========== CRITICAL SAFETY HALT ==========");
+        Serial.println("Joint angle(s) exceed physical limits!");
+        Serial.print("Joint 1 angle: ");
+        Serial.print(jointAngle1, 4);
+        Serial.print(" rad (min:");
+        Serial.print(AppConfig::Motor::kMinJointAngle, 4);
+        Serial.print(" max:");
+        Serial.print(AppConfig::Motor::kMaxJointAngle, 4);
+        Serial.println(")");
+        Serial.print("Joint 2 angle: ");
+        Serial.print(jointAngle2, 4);
+        Serial.print(" rad (min:");
+        Serial.print(AppConfig::Motor::kMinJointAngle, 4);
+        Serial.print(" max:");
+        Serial.print(AppConfig::Motor::kMaxJointAngle, 4);
+        Serial.println(")");
+        Serial.println("DISABLING ALL MOTORS. Hard reboot required.");
+        Serial.println("==========================================\n");
+        
+        // Instant motor disable: set all wheel torques to zero (joints already idle)
+        setWheelTorques(0.0f, 0.0f);
+        
+        // Perform one final update to send disable commands
+        pumpEvents(canIntf);
+        for (int i = 0; i < 10; ++i) {
+            delay(10);
+            pumpEvents(canIntf);
+        }
+        
+        // Halt forever until hard reboot
+        while (1) {
+            delay(100);  // Prevent watchdog timeout if enabled
+        }
+    }
+    
+    return true;  // All angles are safe
+}
+
 } // namespace MotorControl
