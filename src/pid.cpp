@@ -28,9 +28,15 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKi,
                        AppConfig::PID::kSpeedPidKd);
 
+// Secondary PD loop for joint angle holding (not integrated; holds standard position).
+// These are fixed PD gains used to maintain leg height during balanced locomotion.
+constexpr float kJointAngleKp = 15.0f;   // Proportional gain for joint angle error
+constexpr float kJointAngleKd = 1.0f;    // Derivative gain for joint angle rate
+
 ControlDebugState gDebug = {};
 
 float forwardCmdFiltered = 0.0f;
+float jointAngleDtPrevious = 0.0f;  // Previous joint angle for velocity estimation
 unsigned long lastControlUs = 0;
 
 bool prevMenuPressed = false;
@@ -77,6 +83,7 @@ void applySafeIdle() {
   gDebug.speedTerm = 0.0f;
   gDebug.balanceTorque = 0.0f;
 
+  jointAngleDtPrevious = 0.0f;  // Reset joint angle velocity estimator
   resetPidStates();
 }
 
@@ -279,11 +286,42 @@ void process(const ImuData& imuData,
                                      -AppConfig::Motor::kWheelTorqueLimit,
                                      AppConfig::Motor::kWheelTorqueLimit);
 
-  const float jumpOffset = aPressed ? AppConfig::XboxController::kMaxLegAngleOffsetRad : 0.0f;
-  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad + jumpOffset;
+  // === Secondary joint angle control: Hold standard posture during balance ===
+  // 1. Read current joint motor positions and convert to logical angles (accounting for direction inversion)
+  const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+  const float motor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+  
+  // Convert motor turns to logical joint angles (inverse of command calculation for motors)
+  // These track the actual external linkage angle despite motor direction inversion
+  const float currentJointAngle = AppConfig::Motor::kLegStartupAngleRad +
+      ((motor1Pos - AppConfig::Motor::kJoint1Vertical90DegMotorTurns) / 
+       (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint1LegDirectionSign));
+  
+  // 2. Estimate joint angle velocity via finite difference for damping
+  const float jointAngleDtCurrent = currentJointAngle;
+  const float jointAngleVelocity = (jointAngleDtCurrent - jointAngleDtPrevious) / dt;
+  jointAngleDtPrevious = jointAngleDtCurrent;
+  
+  // 3. Check if jump button active; if so, apply temporary jump override
+  const float jumpOffset = aPressed ? AppConfig::Motor::kJumpAngleOffset : 0.0f;
+  const float targetJointAngle = AppConfig::Motor::kStandardJointAngle + jumpOffset;
+  
+  // 4. Calculate joint angle error and apply PD control
+  const float jointAngleError = targetJointAngle - currentJointAngle;
+  const float jointPdOutput = (kJointAngleKp * jointAngleError) - (kJointAngleKd * jointAngleVelocity);
+  
+  // 5. Apply joint angle PD output as a modulation on the joint command
+  //    This ensures legs try to return to standard height unless forced by jump command.
+  gDebug.legAngleCmd = clampValue(
+      targetJointAngle + jointPdOutput,
+      AppConfig::Motor::kMinJointAngle,
+      AppConfig::Motor::kMaxJointAngle
+  );
+  
+  // Debug telemetry for joint angle holding loop
   gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
-                                  -AppConfig::XboxController::kMaxLegAngleOffsetRad,
-                                  AppConfig::XboxController::kMaxLegAngleOffsetRad);
+                                  AppConfig::Motor::kMinJointAngle,
+                                  AppConfig::Motor::kMaxJointAngle);
 
   MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
   MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
