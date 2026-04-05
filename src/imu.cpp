@@ -13,6 +13,7 @@ MPU6050 mpu;
 float fusedRollDeg = 0.0f;
 float fusedPitchDeg = 0.0f;
 unsigned long lastUpdateMs = 0;
+bool imuInitialized = false;
 
 constexpr float kAccCoef = 0.02f;
 constexpr float kGyroCoef = 0.98f;
@@ -41,6 +42,7 @@ uint8_t clampToByte(long value) {
 // Initializes MPU6050 and seeds complementary-filter roll/pitch values.
 bool IMUManager::begin() {
   data_ = {0.0f, 0.0f, 0.0f, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  imuInitialized = false;
 
   Wire.begin();
   Wire.setClock(AppConfig::IMU::kI2cClockHz);
@@ -63,11 +65,16 @@ bool IMUManager::begin() {
   fusedRollDeg = atan2f(ayf, azf + fabsf(axf)) * 57.29578f;
   fusedPitchDeg = atan2f(axf, azf + fabsf(ayf)) * -57.29578f;
   lastUpdateMs = millis();
+  imuInitialized = true;
   return true;
 }
 
 // Reads IMU sensors and updates both raw and fused orientation outputs.
 bool IMUManager::update() {
+  if (!imuInitialized) {
+    return false;
+  }
+
   int16_t ax = 0;
   int16_t ay = 0;
   int16_t az = 0;

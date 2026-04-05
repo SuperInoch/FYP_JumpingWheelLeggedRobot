@@ -59,7 +59,14 @@ void setup() {
     delay(100);
   }
 
-  imu.begin();
+  if (!imu.begin()) {
+    Serial.println("IMU initialization failed (MPU6050 not detected on I2C).");
+    Serial.println("Check wiring: VCC, GND, SDA, SCL and IMU power.");
+    while (true) {
+      delay(200);
+    }
+  }
+  Serial.println("IMU initialization OK.");
   XboxController::begin();
 
   if (AppConfig::Behavior::kRequireXboxSignalOnStartup) {
@@ -109,7 +116,7 @@ void loop() {
   static unsigned long lastMonitorPrintMs = 0;
   static bool prevAPressed = false;
 
-  imu.update();
+  const bool imuOk = imu.update();
   MotorControl::update();
   XboxController::update();
 
@@ -143,6 +150,8 @@ void loop() {
 
     Serial.print("aPressed:");
     Serial.print(aPressed ? 1 : 0);
+    Serial.print(", imu:");
+    Serial.print(imuOk ? "ok" : "fail");
     Serial.print(", m1-angleDeg:");
     Serial.print(motor1AngleDeg, 2);
     Serial.print(", m2-angleDeg:");
