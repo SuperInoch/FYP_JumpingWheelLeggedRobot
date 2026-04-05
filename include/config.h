@@ -90,6 +90,24 @@ constexpr float kJointKd = 1.0f;
 constexpr float kJoint1LegDirectionSign = -1.0f;
 constexpr float kJoint2LegDirectionSign = 1.0f;
 
+// Joint angle limits (radians): physical linkage safety bounds.
+// TODO: Measure and calibrate these based on your mechanical range of motion.
+// Motor 1 is clockwise; Motor 2 is anti-clockwise.
+constexpr float kMinJointAngle = -1.0f;  // Compressed/folded position (adjust to hardware limit)
+constexpr float kMaxJointAngle = 1.0f;   // Extended position (adjust to hardware limit)
+
+// Standard balanced upright leg angle (radians).
+// TODO: Measure this angle when the robot is standing in balanced pose.
+constexpr float kStandardJointAngle = 0.0f;
+
+// Pre-jump compression angle offset (radians): sneak motion shortens legs.
+// TODO: Tune this to achieve desired compression depth before jump.
+constexpr float kSneakAngleOffset = -0.2f;
+
+// Explosive jump extension angle offset (radians): jump motion extends legs powerfully.
+// TODO: Tune this to achieve desired jump height and power.
+constexpr float kJumpAngleOffset = 0.3f;
+
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
 constexpr float kWheelLeftSign = 1.0f;
