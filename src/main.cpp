@@ -155,32 +155,24 @@ void loop() {
   const unsigned long nowMs = millis();
   if (nowMs - lastMonitorPrintMs >= AppConfig::Behavior::kMonitorPrintIntervalMs) {
     lastMonitorPrintMs = nowMs;
-    Serial.print("drive:");
-    Serial.print(dbg.driveEnabled ? 1 : 0);
-    Serial.print(", xbox:");
-    Serial.print(dbg.xboxConnected ? 1 : 0);
-    Serial.print(", a:");
+    const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float motor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+    const float motor1CalPos = calibrationReferenceValid ? (motor1Pos - calibrationMotor1Pos) : motor1Pos;
+    const float motor2CalPos = calibrationReferenceValid ? (motor2Pos - calibrationMotor2Pos) : motor2Pos;
+
+    Serial.print("aPressed:");
     Serial.print(aPressed ? 1 : 0);
-    Serial.print(", leg-cmd:");
-    Serial.print(dbg.legAngleCmd, 3);
-    Serial.print(", m1-fb:");
-    Serial.print(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId), 3);
-    Serial.print(", m2-fb:");
-    Serial.print(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId), 3);
-    Serial.print(", m1-st:");
-    Serial.print(MotorControl::getAxisState(AppConfig::Motor::kJointMotorLeftNodeId));
-    Serial.print(", m2-st:");
-    Serial.print(MotorControl::getAxisState(AppConfig::Motor::kJointMotorRightNodeId));
-    Serial.print(", m1-err:0x");
-    Serial.print(MotorControl::getAxisError(AppConfig::Motor::kJointMotorLeftNodeId), HEX);
-    Serial.print(", m2-err:0x");
-    Serial.print(MotorControl::getAxisError(AppConfig::Motor::kJointMotorRightNodeId), HEX);
-    Serial.print(", btn:");
-    Serial.print(dbg.buttons, HEX);
-    Serial.print(", can-tx-fail:");
-    Serial.print(MotorControl::getTxFailCount());
-    Serial.print(", can-rx:");
-    Serial.println(MotorControl::getRxCount());
+    Serial.print(", m1-pos:");
+    Serial.print(motor1CalPos, 3);
+    Serial.print(", m2-pos:");
+    Serial.print(motor2CalPos, 3);
+    Serial.print(", accel:[");
+    Serial.print(imu.data().accelX);
+    Serial.print(",");
+    Serial.print(imu.data().accelY);
+    Serial.print(",");
+    Serial.print(imu.data().accelZ);
+    Serial.println("]");
   }
 
   delay(AppConfig::Behavior::kMainLoopDelayMs);
