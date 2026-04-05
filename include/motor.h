@@ -31,6 +31,14 @@ bool setMotorVelocity(uint8_t nodeId, float velocity, float torqueFeedforward = 
 bool setMotorAbsolutePosition(uint8_t nodeId, float absolutePosition);
 
 // Input: nodeId to query.
+// Output: joint angle in radians relative to the zero pose (motor2 is mirrored negative).
+float getJointAngleRad(uint8_t nodeId);
+
+// Input: nodeId to query.
+// Output: joint angle in degrees relative to the zero pose.
+float getJointAngleDeg(uint8_t nodeId);
+
+// Input: nodeId to query.
 // Output: latest position estimate (0.0 if unavailable).
 float getMotorPosition(uint8_t nodeId);
 // Input: nodeId to query.

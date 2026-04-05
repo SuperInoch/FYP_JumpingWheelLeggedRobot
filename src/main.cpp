@@ -11,21 +11,6 @@ IMUManager imu;
 
 namespace {
 
-float calibrationMotor1Pos = 0.0f;
-float calibrationMotor2Pos = 0.0f;
-bool calibrationReferenceValid = false;
-
-void captureCalibrationReference() {
-  calibrationMotor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-  calibrationMotor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
-  calibrationReferenceValid = true;
-
-  Serial.print("Calibration reference locked: m1-pos=");
-  Serial.print(calibrationMotor1Pos, 3);
-  Serial.print(", m2-pos=");
-  Serial.println(calibrationMotor2Pos, 3);
-}
-
 // Blocks startup until at least one valid Xbox packet is observed.
 bool waitForXboxSignal() {
   Serial.println("Waiting for Xbox signal from ESP32...");
@@ -94,7 +79,7 @@ void setup() {
     }
   }
 
-  if (!MotorControl::initializeRobotPose(AppConfig::Motor::kLegStartupAngleRad)) {
+    if (!MotorControl::initializeRobotPose(0.0f)) {
     Serial.println("Robot pose initialization failed.");
     while (true) {
       delay(100);
@@ -114,8 +99,6 @@ void setup() {
       delay(100);
     }
   }
-
-  captureCalibrationReference();
 
   RobotControl::begin();
   Serial.println("Control pipeline ready: IMU/Xbox -> PID -> Motor");
@@ -155,17 +138,15 @@ void loop() {
   const unsigned long nowMs = millis();
   if (nowMs - lastMonitorPrintMs >= AppConfig::Behavior::kMonitorPrintIntervalMs) {
     lastMonitorPrintMs = nowMs;
-    const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-    const float motor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
-    const float motor1CalPos = calibrationReferenceValid ? (motor1Pos - calibrationMotor1Pos) : motor1Pos;
-    const float motor2CalPos = calibrationReferenceValid ? (motor2Pos - calibrationMotor2Pos) : motor2Pos;
+    const float motor1AngleDeg = MotorControl::getJointAngleDeg(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float motor2AngleDeg = MotorControl::getJointAngleDeg(AppConfig::Motor::kJointMotorRightNodeId);
 
     Serial.print("aPressed:");
     Serial.print(aPressed ? 1 : 0);
-    Serial.print(", m1-pos:");
-    Serial.print(motor1CalPos, 3);
-    Serial.print(", m2-pos:");
-    Serial.print(motor2CalPos, 3);
+    Serial.print(", m1-angleDeg:");
+    Serial.print(motor1AngleDeg, 2);
+    Serial.print(", m2-angleDeg:");
+    Serial.print(motor2AngleDeg, 2);
     Serial.print(", accel:[");
     Serial.print(imu.data().accelX);
     Serial.print(",");

@@ -18,6 +18,8 @@ static float clampValue(float value, float minValue, float maxValue) {
 
 namespace {
 
+constexpr float kTwoPi = 2.0f * PI;
+
 PIDController pitchPid(AppConfig::PID::kPitchPidKp,
                        AppConfig::PID::kPitchPidKi,
                        AppConfig::PID::kPitchPidKd);
@@ -117,8 +119,9 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       // Use a 200ms timeout or motor movement threshold.
       {
         const unsigned long jumpDurationMs = nowMs - jumpStateStartTimeMs;
-        const float motorDisplacement = abs(currentMotorPos - jumpMotorPosAtStateStart);
-        const bool jumpExtensionComplete = (jumpDurationMs > 200) || (motorDisplacement > 2.0f);
+        const float motorDisplacementTurns = abs(currentMotorPos - jumpMotorPosAtStateStart);
+        const float motorDisplacementRad = motorDisplacementTurns * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        const bool jumpExtensionComplete = (jumpDurationMs > 200) || (motorDisplacementRad > 2.0f);
         
         if (jumpExtensionComplete) {
           jumpState = JUMP_AIRBORNE;
@@ -161,11 +164,11 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
 // Commands a safe neutral pose and resets control outputs.
 void applySafeIdle() {
   MotorControl::setWheelTorques(0.0f, 0.0f);
-  MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kLegStartupAngleRad);
+  MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kStandardJointAngle);
 
   gDebug.leftTorqueCmd = 0.0f;
   gDebug.rightTorqueCmd = 0.0f;
-  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad;
+  gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle;
   gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
   gDebug.pitchTerm = 0.0f;
   gDebug.gyroTerm = 0.0f;
@@ -262,7 +265,7 @@ void begin() {
   gDebug.dtSeconds = AppConfig::XboxController::kControlDtFallbackSec;
   gDebug.leftTorqueCmd = 0.0f;
   gDebug.rightTorqueCmd = 0.0f;
-  gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad;
+  gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle;
   gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
   gDebug.pitchTerm = 0.0f;
   gDebug.gyroTerm = 0.0f;
@@ -326,10 +329,10 @@ void process(const ImuData& imuData,
 
   if (!gDebug.driveEnabled) {
     const float jumpOffset = aPressed ? AppConfig::XboxController::kMaxLegAngleOffsetRad : 0.0f;
-    gDebug.legAngleCmd = AppConfig::Motor::kLegStartupAngleRad + jumpOffset;
+    gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle + jumpOffset;
     gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
-                                    -AppConfig::XboxController::kMaxLegAngleOffsetRad,
-                                    AppConfig::XboxController::kMaxLegAngleOffsetRad);
+                                    AppConfig::Motor::kStandardJointAngle - AppConfig::XboxController::kMaxLegAngleOffsetRad,
+                                    AppConfig::Motor::kStandardJointAngle + AppConfig::XboxController::kMaxLegAngleOffsetRad);
 
     // Keep wheels idle when drive is disabled, but allow A-button leg motion for testing.
     gDebug.leftTorqueCmd = 0.0f;
@@ -382,9 +385,7 @@ void process(const ImuData& imuData,
   
   // Convert motor turns to logical joint angles (inverse of command calculation for motors)
   // These track the actual external linkage angle despite motor direction inversion
-  const float currentJointAngle = AppConfig::Motor::kLegStartupAngleRad +
-      ((motor1Pos - AppConfig::Motor::kJoint1Vertical90DegMotorTurns) / 
-       (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint1LegDirectionSign));
+  const float currentJointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
   
   // 2. Update jump state machine to get target angle (sneak -> jump -> airborne -> idle)
   const unsigned long nowMs = millis();

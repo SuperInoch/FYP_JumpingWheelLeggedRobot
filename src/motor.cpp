@@ -11,6 +11,7 @@ namespace {
 constexpr uint32_t kCanBaudrate = AppConfig::Motor::kCanBitrateSecondary;
 constexpr uint8_t kMotorCount = 4;
 constexpr uint32_t kFeedbackPollIntervalMs = 20;  // 50 Hz poll request pacing
+constexpr float kTwoPi = 2.0f * PI;
 
 // ODrive node IDs (must match ODrive Web GUI config)
 const uint8_t kNodeIds[kMotorCount] = {
@@ -57,9 +58,6 @@ bool motorEnabled[kMotorCount] = {
     AppConfig::Motor::kEnableMotor4,
 };
 bool hasAnyFeedback = false;
-
-float startupJointPos1 = 0.0f;
-float startupJointPos2 = 0.0f;
 
 // ODriveCAN objects for each motor (accessed by onCanMessage in global scope)
 HardwareCAN& canIntf = CAN;
@@ -333,13 +331,9 @@ namespace MotorControl {
 // Brings up motor subsystem from CAN startup to closed-loop readiness.
 bool begin() {
     printMotorEnableConfig();
-
-    // Compute startup joint positions
-    startupJointPos1 = AppConfig::Motor::kJoint1Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
-    startupJointPos2 = AppConfig::Motor::kJoint2Vertical90DegMotorTurns + (PI / 2.0f) * AppConfig::Motor::kJointGearRatio;
     
     // Set initial pose commands (will be sent once motors are ready)
-    if (!initializeRobotPose(AppConfig::Motor::kLegStartupAngleRad)) {
+    if (!initializeRobotPose(0.0f)) {
         Serial.println("ERROR: Failed to set startup pose");
         return false;
     }
@@ -404,9 +398,9 @@ bool initializeRobotPose(float legAngleRad) {
 
 // Converts requested leg angle into mirrored joint motor position targets.
 bool setMirroredLegJointAngles(float legAngleRad) {
-    const float motorTurnsDelta = legAngleRad * AppConfig::Motor::kJointGearRatio;
-    const float joint1Target = startupJointPos1 + (AppConfig::Motor::kJoint1LegDirectionSign * motorTurnsDelta);
-    const float joint2Target = startupJointPos2 + (AppConfig::Motor::kJoint2LegDirectionSign * motorTurnsDelta);
+    const float motorTurnsDelta = (legAngleRad / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint1Target = AppConfig::Motor::kJoint1DefaultOffsetTurns + motorTurnsDelta;
+    const float joint2Target = AppConfig::Motor::kJoint2DefaultOffsetTurns - motorTurnsDelta;
     
     commands[0].position = joint1Target;
     commands[0].velocity = 0.0f;
@@ -485,6 +479,27 @@ bool setMotorAbsolutePosition(uint8_t nodeId, float absolutePosition) {
     }
 
     return odrives[idx]->setAbsolutePosition(absolutePosition);
+}
+
+float getJointAngleRad(uint8_t nodeId) {
+    const int idx = findMotorIndexByNodeId(nodeId);
+    if (idx < 0 || !feedback[idx].valid) {
+        return 0.0f;
+    }
+
+    const float turns = feedback[idx].pos;
+    if (nodeId == AppConfig::Motor::kJointMotorLeftNodeId) {
+        return (turns - AppConfig::Motor::kJoint1DefaultOffsetTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+    }
+    if (nodeId == AppConfig::Motor::kJointMotorRightNodeId) {
+        return -(turns - AppConfig::Motor::kJoint2DefaultOffsetTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+    }
+
+    return 0.0f;
+}
+
+float getJointAngleDeg(uint8_t nodeId) {
+    return getJointAngleRad(nodeId) * AppConfig::Motor::kRadToDeg;
 }
 
 // Returns last known position for a motor, or zero when unavailable.
@@ -584,11 +599,9 @@ bool checkJointLimits() {
     const float motor2Pos = getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
     
     // Convert motor positions to logical joint angles (radians).
-    // Inverse of: motor_pos = startupPos + (joint_angle * gearRatio * directionSign)
-    const float jointAngle1 = (motor1Pos - startupJointPos1) / 
-                              (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint1LegDirectionSign);
-    const float jointAngle2 = (motor2Pos - startupJointPos2) / 
-                              (AppConfig::Motor::kJointGearRatio * AppConfig::Motor::kJoint2LegDirectionSign);
+    // Motor 1 positive, motor 2 mirrored negative.
+    const float jointAngle1 = getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float jointAngle2 = getJointAngleRad(AppConfig::Motor::kJointMotorRightNodeId);
     
     // Check if both angles are within safe limits
     const bool angle1Safe = (jointAngle1 >= AppConfig::Motor::kMinJointAngle) && 

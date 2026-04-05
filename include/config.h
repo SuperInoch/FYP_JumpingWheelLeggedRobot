@@ -74,39 +74,45 @@ constexpr float kTorMin = -18.0f;
 constexpr float kTorMax = 18.0f;
 
 constexpr float kJointGearRatio = 8.0f;
-// Measure and tune these two per motor on your hardware.
-constexpr float kJoint1Vertical90DegMotorTurns = 1.89f;
-constexpr float kJoint2Vertical90DegMotorTurns = 3.69f;
-
-// Startup leg angle (radians): 0 means exactly lesson's reference pose.
-constexpr float kLegStartupAngleRad = 0.0f;
-
 // Joint hold gains during balancing.
 constexpr float kJointKp = 25.0f;
 constexpr float kJointKd = 1.0f;
 
-// Direction signs for mirrored leg-angle offset commands.
-// Keep opposite signs for mirrored motion; flip a sign if one joint moves the wrong way.
-constexpr float kJoint1LegDirectionSign = -1.0f;
-constexpr float kJoint2LegDirectionSign = 1.0f;
+// Joint angle tuning is authored in degrees.
+// Motor 1 physical reference:
+// - Zero pose is the raw driver reading of 0.
+// - Default pose is per-motor offset from zero pose.
+// - Standard pose is a common offset from default pose.
+// Runtime control code consumes radians via derived constants below.
+constexpr float kDegToRad = PI / 180.0f;
+constexpr float kRadToDeg = 180.0f / PI;
 
-// Joint angle limits (radians): physical linkage safety bounds.
+// Per-motor default position offsets from zero pose in motor turns.
+// Tune these so your preferred "default" posture is reached when standard offset is 0 deg.
+constexpr float kJoint1DefaultOffsetTurns = 0.0f;
+constexpr float kJoint2DefaultOffsetTurns = 0.0f;
+
+// Common standard angle offset from default pose.
+// Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
+constexpr float kStandardFromDefaultDeg = 0.0f;
+
+// Standard pose in controller coordinates (relative to default pose).
+constexpr float kStandardJointAngleDeg = kStandardFromDefaultDeg;
+constexpr float kStandardJointAngle = kStandardJointAngleDeg * kDegToRad;
+
+// Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-// Motor 1 is clockwise; Motor 2 is anti-clockwise.
-constexpr float kMinJointAngle = -1.0f;  // Compressed/folded position (adjust to hardware limit)
-constexpr float kMaxJointAngle = 1.0f;   // Extended position (adjust to hardware limit)
+constexpr float kMinJointAngleDeg = -57.29578f;  // Compressed/folded from default pose
+constexpr float kMaxJointAngleDeg = 57.29578f;   // Extended from default pose
+constexpr float kMinJointAngle = kMinJointAngleDeg * kDegToRad;
+constexpr float kMaxJointAngle = kMaxJointAngleDeg * kDegToRad;
 
-// Standard balanced upright leg angle (radians).
-// TODO: Measure this angle when the robot is standing in balanced pose.
-constexpr float kStandardJointAngle = 0.0f;
-
-// Pre-jump compression angle offset (radians): sneak motion shortens legs.
-// TODO: Tune this to achieve desired compression depth before jump.
-constexpr float kSneakAngleOffset = -0.2f;
-
-// Explosive jump extension angle offset (radians): jump motion extends legs powerfully.
-// TODO: Tune this to achieve desired jump height and power.
-constexpr float kJumpAngleOffset = 0.3f;
+// Pre-jump compression and jump extension offsets relative to the standard pose.
+// Negative sneak offset shortens the legs; positive jump offset extends them.
+constexpr float kSneakAngleOffsetDeg = -11.45916f;
+constexpr float kJumpAngleOffsetDeg = 17.18873f;
+constexpr float kSneakAngleOffset = kSneakAngleOffsetDeg * kDegToRad;
+constexpr float kJumpAngleOffset = kJumpAngleOffsetDeg * kDegToRad;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
