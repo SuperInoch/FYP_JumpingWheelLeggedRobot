@@ -327,12 +327,25 @@ void process(const ImuData& imuData,
   prevMenuPressed = menuPressed;
   prevViewPressed = viewPressed;
 
+  // Joint motors only respond to A-button. If A is not pressed, freeze at current angle.
+  const float currentJointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
+  if (!aPressed) {
+    jumpState = JUMP_IDLE;
+    prevAPressed = false;
+    jointAngleDtPrevious = currentJointAngle;
+    gDebug.legAngleCmd = clampValue(currentJointAngle,
+                                    AppConfig::Motor::kMinJointAngle,
+                                    AppConfig::Motor::kMaxJointAngle);
+  }
+
   if (!gDebug.driveEnabled) {
-    const float jumpOffset = aPressed ? AppConfig::XboxController::kMaxLegAngleOffsetRad : 0.0f;
-    gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle + jumpOffset;
-    gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
-                                    AppConfig::Motor::kStandardJointAngle - AppConfig::XboxController::kMaxLegAngleOffsetRad,
-                                    AppConfig::Motor::kStandardJointAngle + AppConfig::XboxController::kMaxLegAngleOffsetRad);
+    if (aPressed) {
+      const float jumpOffset = AppConfig::XboxController::kMaxLegAngleOffsetRad;
+      gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle + jumpOffset;
+      gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
+                                      AppConfig::Motor::kStandardJointAngle - AppConfig::XboxController::kMaxLegAngleOffsetRad,
+                                      AppConfig::Motor::kStandardJointAngle + AppConfig::XboxController::kMaxLegAngleOffsetRad);
+    }
 
     // Keep wheels idle when drive is disabled, but allow A-button leg motion for testing.
     gDebug.leftTorqueCmd = 0.0f;
@@ -378,14 +391,16 @@ void process(const ImuData& imuData,
                                      -AppConfig::Motor::kWheelTorqueLimit,
                                      AppConfig::Motor::kWheelTorqueLimit);
 
-  // === Secondary joint angle control: Hold standard posture + jump sequence ===
-  // 1. Read current joint motor positions and convert to logical angles (accounting for direction inversion)
+  // === Secondary joint angle control: A-button gated jump sequence ===
+  // 1. Read current joint motor positions
   const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-  const float motor2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
-  
-  // Convert motor turns to logical joint angles (inverse of command calculation for motors)
-  // These track the actual external linkage angle despite motor direction inversion
-  const float currentJointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
+
+  if (!aPressed) {
+    // Wheels still balance/drive, but joints are frozen unless A is pressed.
+    MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
+    MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
+    return;
+  }
   
   // 2. Update jump state machine to get target angle (sneak -> jump -> airborne -> idle)
   const unsigned long nowMs = millis();
