@@ -102,15 +102,15 @@ constexpr float kStandardJointAngle = kStandardJointAngleDeg * kDegToRad;
 
 // Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngleDeg = -57.29578f;  // Compressed/folded from default pose
-constexpr float kMaxJointAngleDeg = 57.29578f;   // Extended from default pose
+constexpr float kMinJointAngleDeg = -40.0f;  // Compressed/folded from default pose
+constexpr float kMaxJointAngleDeg = 30.0f;   // Extended from default pose
 constexpr float kMinJointAngle = kMinJointAngleDeg * kDegToRad;
 constexpr float kMaxJointAngle = kMaxJointAngleDeg * kDegToRad;
 
 // Pre-jump compression and jump extension offsets relative to the standard pose.
 // Negative sneak offset shortens the legs; positive jump offset extends them.
-constexpr float kSneakAngleOffsetDeg = -11.45916f;
-constexpr float kJumpAngleOffsetDeg = 17.18873f;
+constexpr float kSneakAngleOffsetDeg = 25.0f;   // A pressed target: +25 deg
+constexpr float kJumpAngleOffsetDeg = -20.0f;   // A released target: -20 deg
 constexpr float kSneakAngleOffset = kSneakAngleOffsetDeg * kDegToRad;
 constexpr float kJumpAngleOffset = kJumpAngleOffsetDeg * kDegToRad;
 

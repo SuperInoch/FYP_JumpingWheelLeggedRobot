@@ -30,11 +30,6 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKi,
                        AppConfig::PID::kSpeedPidKd);
 
-// Secondary PD loop for joint angle holding (not integrated; holds standard position).
-// These are fixed PD gains used to maintain leg height during balanced locomotion.
-constexpr float kJointAngleKp = 15.0f;   // Proportional gain for joint angle error
-constexpr float kJointAngleKd = 1.0f;    // Derivative gain for joint angle rate
-
 // Jump state machine enumerator.
 enum JumpState {
   JUMP_IDLE,       // Legs at standard height, waiting for A button.
@@ -46,16 +41,19 @@ enum JumpState {
 // Jump sequence state machine variables
 JumpState jumpState = JUMP_IDLE;
 unsigned long jumpStateStartTimeMs = 0;  // Timestamp when entering current state
-float jumpMotorPosAtStateStart = 0.0f;   // Motor position when jump extension starts
 bool prevAPressed = false;               // Track A button edge for state transitions
+bool rawAPressedPrev = false;            // Last raw A reading for debounce.
+bool debouncedAPressed = false;          // Debounced A state used by jump state machine.
+unsigned long aDebounceStartTimeMs = 0;  // Raw-edge timestamp for debounce window.
 
-// Landing detection threshold: Z-axis acceleration spike (raw sensor units).
-constexpr int16_t kLandingAccelThreshold = 15000;  // Adjust based on landing impact sensitivity
+// Hold jump extension for 1 second after A release, then recover to default.
+constexpr unsigned long kJumpHoldMs = 1000;
+constexpr unsigned long kRecoverToIdleMs = 150;
+constexpr unsigned long kAButtonDebounceMs = 35;
 
 ControlDebugState gDebug = {};
 
 float forwardCmdFiltered = 0.0f;
-float jointAngleDtPrevious = 0.0f;  // Previous joint angle for velocity estimation
 unsigned long lastControlUs = 0;
 
 bool prevMenuPressed = false;
@@ -69,6 +67,21 @@ bool isPressed(uint8_t buttons, uint8_t bit) {
 // First-order low-pass filter for command smoothing.
 float lowPass(float prev, float input, float alpha) {
   return alpha * input + (1.0f - alpha) * prev;
+}
+
+// Debounces A-button transitions to avoid false jump triggers from packet jitter.
+bool debounceAButton(bool aPressedRaw, unsigned long nowMs) {
+  if (aPressedRaw != rawAPressedPrev) {
+    rawAPressedPrev = aPressedRaw;
+    aDebounceStartTimeMs = nowMs;
+  }
+
+  if (debouncedAPressed != rawAPressedPrev &&
+      (nowMs - aDebounceStartTimeMs) >= kAButtonDebounceMs) {
+    debouncedAPressed = rawAPressedPrev;
+  }
+
+  return debouncedAPressed;
 }
 
 // Converts raw stick byte to normalized [-1, 1] with deadband around center.
@@ -91,6 +104,9 @@ void resetPidStates() {
 // Jump state machine: orchestrates sneak -> jump -> airborne -> landing sequence.
 // Returns the target joint angle based on current jump state and transitions.
 float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData& imuData, unsigned long nowMs) {
+  (void)currentMotorPos;
+  (void)imuData;
+
   const bool aJustPressed = aPressed && !prevAPressed;
   const bool aJustReleased = !aPressed && prevAPressed;
   prevAPressed = aPressed;
@@ -110,30 +126,20 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       if (aJustReleased) {
         jumpState = JUMP_JUMPING;
         jumpStateStartTimeMs = nowMs;
-        jumpMotorPosAtStateStart = currentMotorPos;
       }
       break;
 
     case JUMP_JUMPING:
-      // Jumping: hold explosive extension until motor displacement detected.
-      // Use a 200ms timeout or motor movement threshold.
-      {
-        const unsigned long jumpDurationMs = nowMs - jumpStateStartTimeMs;
-        const float motorDisplacementTurns = abs(currentMotorPos - jumpMotorPosAtStateStart);
-        const float motorDisplacementRad = motorDisplacementTurns * kTwoPi / AppConfig::Motor::kJointGearRatio;
-        const bool jumpExtensionComplete = (jumpDurationMs > 200) || (motorDisplacementRad > 2.0f);
-        
-        if (jumpExtensionComplete) {
-          jumpState = JUMP_AIRBORNE;
-          jumpStateStartTimeMs = nowMs;
-        }
+      // Jumping: hold jump target for a fixed window after release.
+      if ((nowMs - jumpStateStartTimeMs) >= kJumpHoldMs) {
+        jumpState = JUMP_AIRBORNE;
+        jumpStateStartTimeMs = nowMs;
       }
       break;
 
     case JUMP_AIRBORNE:
-      // Airborne: retract to standard, detect landing via Z-accel spike.
-      // Landing is high Z acceleration indicating impact.
-      if (imuData.accelZ > kLandingAccelThreshold) {
+      // Recovery: settle at standard/default pose then return to idle.
+      if ((nowMs - jumpStateStartTimeMs) >= kRecoverToIdleMs) {
         jumpState = JUMP_IDLE;
         jumpStateStartTimeMs = nowMs;
       }
@@ -148,7 +154,7 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       targetAngle = AppConfig::Motor::kStandardJointAngle;
       break;
     case JUMP_SNEAKING:
-      targetAngle = AppConfig::Motor::kStandardJointAngle - AppConfig::Motor::kSneakAngleOffset;
+      targetAngle = AppConfig::Motor::kStandardJointAngle + AppConfig::Motor::kSneakAngleOffset;
       break;
     case JUMP_JUMPING:
       targetAngle = AppConfig::Motor::kStandardJointAngle + AppConfig::Motor::kJumpAngleOffset;
@@ -174,8 +180,6 @@ void applySafeIdle() {
   gDebug.gyroTerm = 0.0f;
   gDebug.speedTerm = 0.0f;
   gDebug.balanceTorque = 0.0f;
-
-  jointAngleDtPrevious = 0.0f;  // Reset joint angle velocity estimator
   resetPidStates();
 }
 
@@ -280,6 +284,12 @@ void begin() {
 
   prevMenuPressed = false;
   prevViewPressed = false;
+  rawAPressedPrev = false;
+  debouncedAPressed = false;
+  aDebounceStartTimeMs = 0;
+  prevAPressed = false;
+  jumpState = JUMP_IDLE;
+  jumpStateStartTimeMs = 0;
 
   applySafeIdle();
   lastControlUs = micros();
@@ -313,7 +323,9 @@ void process(const ImuData& imuData,
   gDebug.leftStickY = xboxData.leftStickY;
   gDebug.buttons = xboxData.buttons;
 
-  const bool aPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonABit);
+  const bool aPressedRaw = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonABit);
+  const unsigned long nowMs = millis();
+  const bool aPressed = debounceAButton(aPressedRaw, nowMs);
   const bool menuPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonMenuBit);
   const bool viewPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonViewBit);
   const bool rbPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonRbBit);
@@ -327,27 +339,14 @@ void process(const ImuData& imuData,
   prevMenuPressed = menuPressed;
   prevViewPressed = viewPressed;
 
-  // Joint motors only respond to A-button. If A is not pressed, freeze at current angle.
-  const float currentJointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
-  if (!aPressed) {
-    jumpState = JUMP_IDLE;
-    prevAPressed = false;
-    jointAngleDtPrevious = currentJointAngle;
-    gDebug.legAngleCmd = clampValue(currentJointAngle,
+  if (!gDebug.driveEnabled) {
+    const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float targetJointAngle = updateJumpStateMachine(aPressed, motor1Pos, imuData, nowMs);
+    gDebug.legAngleCmd = clampValue(targetJointAngle,
                                     AppConfig::Motor::kMinJointAngle,
                                     AppConfig::Motor::kMaxJointAngle);
-  }
 
-  if (!gDebug.driveEnabled) {
-    if (aPressed) {
-      const float jumpOffset = AppConfig::XboxController::kMaxLegAngleOffsetRad;
-      gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle + jumpOffset;
-      gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,
-                                      AppConfig::Motor::kStandardJointAngle - AppConfig::XboxController::kMaxLegAngleOffsetRad,
-                                      AppConfig::Motor::kStandardJointAngle + AppConfig::XboxController::kMaxLegAngleOffsetRad);
-    }
-
-    // Keep wheels idle when drive is disabled, but allow A-button leg motion for testing.
+    // Keep wheels idle when drive is disabled.
     gDebug.leftTorqueCmd = 0.0f;
     gDebug.rightTorqueCmd = 0.0f;
     MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
@@ -394,34 +393,13 @@ void process(const ImuData& imuData,
   // === Secondary joint angle control: A-button gated jump sequence ===
   // 1. Read current joint motor positions
   const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-
-  if (!aPressed) {
-    // Wheels still balance/drive, but joints are frozen unless A is pressed.
-    MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
-    MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
-    return;
-  }
-  
   // 2. Update jump state machine to get target angle (sneak -> jump -> airborne -> idle)
-  const unsigned long nowMs = millis();
   const float targetJointAngleFromStateMachine = updateJumpStateMachine(aPressed, motor1Pos, imuData, nowMs);
-  
-  // 3. Estimate joint angle velocity via finite difference for damping
-  const float jointAngleDtCurrent = currentJointAngle;
-  const float jointAngleVelocity = (jointAngleDtCurrent - jointAngleDtPrevious) / dt;
-  jointAngleDtPrevious = jointAngleDtCurrent;
-  
-  // 4. Calculate joint angle error and apply PD control to reach state-machine target
-  const float jointAngleError = targetJointAngleFromStateMachine - currentJointAngle;
-  const float jointPdOutput = (kJointAngleKp * jointAngleError) - (kJointAngleKd * jointAngleVelocity);
-  
-  // 5. Apply joint angle PD output as a modulation on the joint command
-  //    This ensures smooth motion between state machine targets.
-  gDebug.legAngleCmd = clampValue(
-      targetJointAngleFromStateMachine + jointPdOutput,
-      AppConfig::Motor::kMinJointAngle,
-      AppConfig::Motor::kMaxJointAngle
-  );
+
+  // 3. Command the exact jump-state target and let motor position mode track it.
+  gDebug.legAngleCmd = clampValue(targetJointAngleFromStateMachine,
+                                  AppConfig::Motor::kMinJointAngle,
+                                  AppConfig::Motor::kMaxJointAngle);
   
   // Clamp to safety limits
   gDebug.legAngleCmd = clampValue(gDebug.legAngleCmd,

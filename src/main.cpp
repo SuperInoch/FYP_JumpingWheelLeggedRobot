@@ -123,7 +123,13 @@ void loop() {
   const XboxControllerData& xboxData = XboxController::getData();
   const bool aPressed = (xboxData.buttons & (1U << AppConfig::XboxController::kButtonABit)) != 0;
   if (aPressed && !prevAPressed) {
-    Serial.print("Jump! joint-fb m1=");
+    Serial.print("Sneak! joint-fb m1=");
+    Serial.print(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId), 3);
+    Serial.print(", m2=");
+    Serial.println(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId), 3);
+  }
+  if (!aPressed && prevAPressed) {
+    Serial.print("jump! joint-fb m1=");
     Serial.print(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId), 3);
     Serial.print(", m2=");
     Serial.println(MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId), 3);
@@ -152,6 +158,12 @@ void loop() {
     Serial.print(aPressed ? 1 : 0);
     Serial.print(", imu:");
     Serial.print(imuOk ? "ok" : "fail");
+    Serial.print(", xbox:");
+    Serial.print(dbg.xboxConnected ? "ok" : "lost");
+    Serial.print(", ageMs:");
+    Serial.print(dbg.xboxAgeMs);
+    Serial.print(", cmd-angleDeg:");
+    Serial.print(dbg.legAngleCmd * AppConfig::Motor::kRadToDeg, 2);
     Serial.print(", m1-angleDeg:");
     Serial.print(motor1AngleDeg, 2);
     Serial.print(", m2-angleDeg:");

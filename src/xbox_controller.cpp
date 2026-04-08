@@ -25,7 +25,8 @@ void XboxController::begin() {
     controllerData.buttons = 0;
     controllerData.timestamp = millis();
     
-    lastPacketTime = millis();
+    // Mark as disconnected until first valid packet is decoded.
+    lastPacketTime = 0;
     errorCount = 0;
     bufferIndex = 0;
 }
@@ -51,14 +52,14 @@ const XboxControllerData& XboxController::getData() {
 
 // Reports connection as active when fresh packets and non-neutral data are present.
 bool XboxController::isConnected() {
-    uint32_t timeSinceLastPacket = millis() - lastPacketTime;
-    bool hasRecentPacket = timeSinceLastPacket < CONNECTION_TIMEOUT_MS;
-    
-    // Require both recent packet AND active controller data
-    if (hasRecentPacket && isDataActive()) {
-        return true;
+    // Connection should depend on transport freshness, not input activity.
+    // Neutral sticks/buttons are still a valid connected state.
+    if (lastPacketTime == 0) {
+        return false;
     }
-    return false;
+
+    uint32_t timeSinceLastPacket = millis() - lastPacketTime;
+    return timeSinceLastPacket < CONNECTION_TIMEOUT_MS;
 }
 
 // Returns packet age in milliseconds.
