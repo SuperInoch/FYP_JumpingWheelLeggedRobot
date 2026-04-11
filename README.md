@@ -1,4 +1,4 @@
-# Jumping Wheel-legged Robot - Important Notes
+# Final Year Project - Jumping Wheel-legged Robot
 
 ## Hardware (Mechanical)
 - Leg Structure: five-bar linkage
@@ -8,7 +8,7 @@
 - Body Weight (With Legs): 2.1 kg
 - Motor 1 & 2 are the joints control
   - installed back-to-back on the same side
-- Motor 4 & 4 are the wheel
+- Motor 3 & 4 are the wheel
   - installed back-to-back
 
 ## Hardware (Electrical)
