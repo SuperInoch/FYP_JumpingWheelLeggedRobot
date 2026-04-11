@@ -5,7 +5,7 @@
   - Link 1 (Ground): 72 mm
   - Link 2 & 3 (Thigh): 100 mm
   - Link 4 & 5 (Shank): 150 mm
-- Body Weight (With Legs): 2.1 kg
+- Body Weight (Without Legs): 2.1 kg
 - Motor 1 & 2 are the joints control
   - installed back-to-back on the same side
 - Motor 3 & 4 are the wheel
