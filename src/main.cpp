@@ -165,23 +165,23 @@ void loop() {
                           (pitchErrorDeg <= kBalancePitchErrorLimitDeg) &&
                           (fabsf(imuData.yawRateDegPerSec) <= kBalanceYawRateLimitDegPerSec);
 
-    Serial.print("Controller[LeftStick_X:");
+    Serial.print("Controller[L_X:");
     Serial.print(xboxData.leftStickX);
-    Serial.print(", LeftStick_Y:");
+    Serial.print(", L_Y:");
     Serial.print(xboxData.leftStickY);
-    Serial.print(", aPressed:");
+    Serial.print(", A:");
     Serial.print(aPressed ? 1 : 0);
     Serial.print("] ");
 
-    Serial.print("Joints[motor1_pos:");
+    Serial.print("Joints[M1_pos:");
     Serial.print(joint1Pos, 3);
-    Serial.print(", motor2_pos:");
+    Serial.print(", M2_pos:");
     Serial.print(joint2Pos, 3);
     Serial.print("] ");
 
-    Serial.print("Wheels[motor3_vel:");
+    Serial.print("Wheels[M3_vel:");
     Serial.print(wheel3Vel, 3);
-    Serial.print(", motor4_vel:");
+    Serial.print(", M4_vel:");
     Serial.print(wheel4Vel, 3);
     Serial.print("] ");
 
