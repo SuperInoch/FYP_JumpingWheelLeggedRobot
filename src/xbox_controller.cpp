@@ -163,4 +163,3 @@ void XboxController::parsePacket(const uint8_t* packet) {
     controllerData.rightTrigger = packet[6];
     controllerData.buttons = packet[7];
 }
-

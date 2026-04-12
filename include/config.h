@@ -147,7 +147,7 @@ constexpr float kStickNormalizeDen = 127.0f;
 
 // Joystick to motor command conversion
 // Left stick Y → forward/backward motion
-// Right stick X → turning
+// Left stick X → turning
 constexpr float kMaxMotorVelocity = 4.0f;      // turns/second
 constexpr float kMaxTurningVelocity = 2.0f;    // turns/second for turning
 constexpr float kForwardScale = 1.0f;
