@@ -149,8 +149,10 @@ void loop() {
     lastMonitorPrintMs = nowMs;
     const float joint1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
     const float joint2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
-    const float wheel3Vel = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId);
-    const float wheel4Vel = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId);
+    const float wheel3VelRaw = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId);
+    const float wheel4VelRaw = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId);
+    const float wheel3VelLogical = wheel3VelRaw * AppConfig::Motor::kWheelLeftSign;
+    const float wheel4VelLogical = wheel4VelRaw * AppConfig::Motor::kWheelRightSign;
     const ImuData& imuData = imu.data();
 
     const float pitchErrorDeg = fabsf(imuData.pitchDeg - dbg.desiredPitchDeg);
@@ -172,10 +174,14 @@ void loop() {
     Serial.print(joint2Pos, 3);
     Serial.print("] ");
 
-    Serial.print("Wheels[M3_vel:");
-    Serial.print(wheel3Vel, 3);
-    Serial.print(", M4_vel:");
-    Serial.print(wheel4Vel, 3);
+    Serial.print("Wheels[M3_raw:");
+    Serial.print(wheel3VelRaw, 3);
+    Serial.print(", M4_raw:");
+    Serial.print(wheel4VelRaw, 3);
+    Serial.print(", M3_logical:");
+    Serial.print(wheel3VelLogical, 3);
+    Serial.print(", M4_logical:");
+    Serial.print(wheel4VelLogical, 3);
     Serial.print("] ");
 
     Serial.print("IMU[accelX:");

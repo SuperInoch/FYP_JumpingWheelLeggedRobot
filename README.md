@@ -21,15 +21,19 @@
   - Motor 1
     - node ID: 0x01
     - control mode: position
+    - left side of the robot
   - Motor 2
     - node ID: 0x02
     - control mode: position
+    - right side of the robot
   - Motor 3
     - node ID: 0x03
     - control mode: speed
+    - left side of the robot
   - Motor 4
     - node ID: 0x04
     - control mode: speed
+    - right side of the robot
 - Controller: Xbox Controller
 
 ## Motor Calibration Workflow (for motor 1 & 2)

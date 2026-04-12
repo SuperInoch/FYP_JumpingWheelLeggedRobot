@@ -128,8 +128,9 @@ WheelSpeedTargets mapLeftStickToWheelSpeeds(float joyX,
   const float turnVelocity = joyX * AppConfig::XboxController::kTurnScale *
                              AppConfig::XboxController::kMaxTurningVelocity;
 
-  float leftVelocity = forwardVelocity - turnVelocity;
-  float rightVelocity = forwardVelocity + turnVelocity;
+  // Positive turn command increases left-wheel target and decreases right-wheel target.
+  float leftVelocity = forwardVelocity + turnVelocity;
+  float rightVelocity = forwardVelocity - turnVelocity;
 
   const float leftAbs = fabsf(leftVelocity);
   const float rightAbs = fabsf(rightVelocity);
