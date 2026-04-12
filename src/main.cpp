@@ -4,7 +4,6 @@
 #include "imu.h"
 #include "motor.h"
 #include "pid.h"
-#include "test.h"
 #include "xbox_controller.h"
 
 IMUManager imu;
@@ -94,12 +93,6 @@ void setup() {
     while (true) {
       delay(100);
     }
-  }
-
-  // Test mode: Rotate motors to standard position for mechanical calibration
-  Serial.println("Starting motor calibration...");
-  if (!TestMode::rotateToStandardPosition(5000)) {
-    Serial.println("WARNING: Motor calibration timeout. Continuing with safety check anyway.");
   }
 
   // Safety check: verify joint angles are within physical limits
