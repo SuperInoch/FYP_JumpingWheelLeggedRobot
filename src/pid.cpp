@@ -51,6 +51,11 @@ constexpr unsigned long kJumpHoldMs = 1000;
 constexpr unsigned long kRecoverToIdleMs = 150;
 constexpr unsigned long kAButtonDebounceMs = 35;
 
+// Forward command protection: reduce forward/back authority when tilt error grows.
+constexpr float kForwardProtectStartPitchErrorDeg = 6.0f;
+constexpr float kForwardProtectCutoffPitchErrorDeg = 14.0f;
+constexpr float kForwardProtectMinScale = 0.15f;
+
 ControlDebugState gDebug = {};
 
 float forwardCmdFiltered = 0.0f;
@@ -98,10 +103,28 @@ float axisToUnit(uint8_t raw, uint8_t deadband) {
   return clampValue(static_cast<float>(centered) / AppConfig::XboxController::kStickNormalizeDen, -1.0f, 1.0f);
 }
 
+// Computes how much forward/back command should be allowed based on current tilt error.
+float computeForwardAuthority(float pitchErrorDegAbs) {
+  if (pitchErrorDegAbs <= kForwardProtectStartPitchErrorDeg) {
+    return 1.0f;
+  }
+  if (pitchErrorDegAbs >= kForwardProtectCutoffPitchErrorDeg) {
+    return kForwardProtectMinScale;
+  }
+
+  const float span = kForwardProtectCutoffPitchErrorDeg - kForwardProtectStartPitchErrorDeg;
+  const float t = (pitchErrorDegAbs - kForwardProtectStartPitchErrorDeg) / span;
+  return 1.0f - t * (1.0f - kForwardProtectMinScale);
+}
+
 // Maps left joystick (x,y) to differential wheel velocity targets in turns/second.
-WheelSpeedTargets mapLeftStickToWheelSpeeds(float joyX, float joyY, float turboScale) {
+WheelSpeedTargets mapLeftStickToWheelSpeeds(float joyX,
+                                            float joyY,
+                                            float turboScale,
+                                            float forwardAuthority) {
   const float forwardVelocity = joyY * AppConfig::XboxController::kForwardScale *
-                                AppConfig::XboxController::kMaxMotorVelocity * turboScale;
+                                AppConfig::XboxController::kMaxMotorVelocity * turboScale *
+                                clampValue(forwardAuthority, 0.0f, 1.0f);
   const float turnVelocity = joyX * AppConfig::XboxController::kTurnScale *
                              AppConfig::XboxController::kMaxTurningVelocity;
 
@@ -391,7 +414,9 @@ void process(const ImuData& imuData,
   joyY = -joyY;
 
   const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
-  const WheelSpeedTargets stickTargets = mapLeftStickToWheelSpeeds(joyX, joyY, turbo);
+  const float pitchErrorFromUprightDeg = fabsf(imuData.pitchDeg - AppConfig::PID::kPitchSetpointDeg);
+  const float forwardAuthority = computeForwardAuthority(pitchErrorFromUprightDeg);
+  const WheelSpeedTargets stickTargets = mapLeftStickToWheelSpeeds(joyX, joyY, turbo, forwardAuthority);
   const float stickForwardVelocity = 0.5f * (stickTargets.leftVelocity + stickTargets.rightVelocity);
   const float stickTurnVelocity = 0.5f * (stickTargets.rightVelocity - stickTargets.leftVelocity);
   const float forwardCmdUnit = clampValue(stickForwardVelocity / AppConfig::XboxController::kMaxMotorVelocity,
