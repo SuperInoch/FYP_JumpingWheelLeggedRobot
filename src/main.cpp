@@ -11,6 +11,9 @@ IMUManager imu;
 
 namespace {
 
+constexpr float kBalancePitchErrorLimitDeg = 6.0f;
+constexpr float kBalanceYawRateLimitDegPerSec = 120.0f;
+
 // Blocks startup until at least one valid Xbox packet is observed.
 bool waitForXboxSignal() {
   Serial.println("Waiting for Xbox signal from ESP32...");
@@ -151,29 +154,55 @@ void loop() {
   const unsigned long nowMs = millis();
   if (nowMs - lastMonitorPrintMs >= AppConfig::Behavior::kMonitorPrintIntervalMs) {
     lastMonitorPrintMs = nowMs;
-    const float motor1AngleDeg = MotorControl::getJointAngleDeg(AppConfig::Motor::kJointMotorLeftNodeId);
-    const float motor2AngleDeg = MotorControl::getJointAngleDeg(AppConfig::Motor::kJointMotorRightNodeId);
+    const float joint1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+    const float joint2Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+    const float wheel3Vel = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId);
+    const float wheel4Vel = MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId);
+    const ImuData& imuData = imu.data();
 
-    Serial.print("aPressed:");
+    const float pitchErrorDeg = fabsf(imuData.pitchDeg - dbg.desiredPitchDeg);
+    const bool balanced = imuOk &&
+                          (pitchErrorDeg <= kBalancePitchErrorLimitDeg) &&
+                          (fabsf(imuData.yawRateDegPerSec) <= kBalanceYawRateLimitDegPerSec);
+
+    Serial.print("Controller[LeftStick_X:");
+    Serial.print(xboxData.leftStickX);
+    Serial.print(", LeftStick_Y:");
+    Serial.print(xboxData.leftStickY);
+    Serial.print(", aPressed:");
     Serial.print(aPressed ? 1 : 0);
-    Serial.print(", imu:");
-    Serial.print(imuOk ? "ok" : "fail");
-    Serial.print(", xbox:");
-    Serial.print(dbg.xboxConnected ? "ok" : "lost");
-    Serial.print(", ageMs:");
-    Serial.print(dbg.xboxAgeMs);
-    Serial.print(", cmd-angleDeg:");
-    Serial.print(dbg.legAngleCmd * AppConfig::Motor::kRadToDeg, 2);
-    Serial.print(", m1-angleDeg:");
-    Serial.print(motor1AngleDeg, 2);
-    Serial.print(", m2-angleDeg:");
-    Serial.print(motor2AngleDeg, 2);
-    Serial.print(", accel:[");
-    Serial.print(imu.data().accelX);
-    Serial.print(",");
-    Serial.print(imu.data().accelY);
-    Serial.print(",");
-    Serial.print(imu.data().accelZ);
+    Serial.print("] ");
+
+    Serial.print("Joints[motor1_pos:");
+    Serial.print(joint1Pos, 3);
+    Serial.print(", motor2_pos:");
+    Serial.print(joint2Pos, 3);
+    Serial.print("] ");
+
+    Serial.print("Wheels[motor3_vel:");
+    Serial.print(wheel3Vel, 3);
+    Serial.print(", motor4_vel:");
+    Serial.print(wheel4Vel, 3);
+    Serial.print("] ");
+
+    Serial.print("IMU[accelX:");
+    Serial.print(imuData.accelX);
+    Serial.print(", accelY:");
+    Serial.print(imuData.accelY);
+    Serial.print(", accelZ:");
+    Serial.print(imuData.accelZ);
+    Serial.print(", pitch:");
+    Serial.print(imuData.pitchDeg, 2);
+    Serial.print(", roll:");
+    Serial.print(imuData.rollDeg, 2);
+    Serial.print(", yawRate:");
+    Serial.print(imuData.yawRateDegPerSec, 2);
+    Serial.print("] ");
+
+    Serial.print("Balanced[");
+    Serial.print(balanced ? "YES" : "NO");
+    Serial.print(", pitchErr:");
+    Serial.print(pitchErrorDeg, 2);
     Serial.println("]");
   }
 
