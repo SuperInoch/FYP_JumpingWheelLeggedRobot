@@ -59,6 +59,11 @@ unsigned long lastControlUs = 0;
 bool prevMenuPressed = false;
 bool prevViewPressed = false;
 
+struct WheelSpeedTargets {
+  float leftVelocity;
+  float rightVelocity;
+};
+
 // Returns true if the requested button bit is currently set.
 bool isPressed(uint8_t buttons, uint8_t bit) {
   return (buttons & (1U << bit)) != 0;
@@ -91,6 +96,28 @@ float axisToUnit(uint8_t raw, uint8_t deadband) {
     return 0.0f;
   }
   return clampValue(static_cast<float>(centered) / AppConfig::XboxController::kStickNormalizeDen, -1.0f, 1.0f);
+}
+
+// Maps left joystick (x,y) to differential wheel velocity targets in turns/second.
+WheelSpeedTargets mapLeftStickToWheelSpeeds(float joyX, float joyY, float turboScale) {
+  const float forwardVelocity = joyY * AppConfig::XboxController::kForwardScale *
+                                AppConfig::XboxController::kMaxMotorVelocity * turboScale;
+  const float turnVelocity = joyX * AppConfig::XboxController::kTurnScale *
+                             AppConfig::XboxController::kMaxTurningVelocity;
+
+  float leftVelocity = forwardVelocity - turnVelocity;
+  float rightVelocity = forwardVelocity + turnVelocity;
+
+  const float leftAbs = fabsf(leftVelocity);
+  const float rightAbs = fabsf(rightVelocity);
+  const float peakAbs = (leftAbs > rightAbs) ? leftAbs : rightAbs;
+  if (peakAbs > AppConfig::XboxController::kMaxMotorVelocity && peakAbs > 0.0f) {
+    const float scale = AppConfig::XboxController::kMaxMotorVelocity / peakAbs;
+    leftVelocity *= scale;
+    rightVelocity *= scale;
+  }
+
+  return {leftVelocity, rightVelocity};
 }
 
 // Clears all PID internal memory and command filters.
@@ -364,8 +391,13 @@ void process(const ImuData& imuData,
   joyY = -joyY;
 
   const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
-  const float forwardCmd = joyY * AppConfig::XboxController::kForwardScale * turbo;
-  forwardCmdFiltered = lowPass(forwardCmdFiltered, forwardCmd, AppConfig::PID::kForwardCommandFilterAlpha);
+  const WheelSpeedTargets stickTargets = mapLeftStickToWheelSpeeds(joyX, joyY, turbo);
+  const float stickForwardVelocity = 0.5f * (stickTargets.leftVelocity + stickTargets.rightVelocity);
+  const float stickTurnVelocity = 0.5f * (stickTargets.rightVelocity - stickTargets.leftVelocity);
+  const float forwardCmdUnit = clampValue(stickForwardVelocity / AppConfig::XboxController::kMaxMotorVelocity,
+                                          -1.0f,
+                                          1.0f);
+  forwardCmdFiltered = lowPass(forwardCmdFiltered, forwardCmdUnit, AppConfig::PID::kForwardCommandFilterAlpha);
 
   gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg +
                            forwardCmdFiltered * AppConfig::PID::kPitchOffsetFromCommandDeg;
@@ -375,18 +407,17 @@ void process(const ImuData& imuData,
   const float wheelSpeed = 0.5f *
       (MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) +
        MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId));
-  const float desiredSpeed = forwardCmdFiltered * AppConfig::XboxController::kMaxMotorVelocity;
+  const float desiredSpeed = stickForwardVelocity;
   gDebug.speedTerm = speedPid.compute(desiredSpeed, wheelSpeed, dt);
 
   gDebug.balanceTorque = clampValue(gDebug.pitchTerm + gDebug.gyroTerm + gDebug.speedTerm,
                                     -AppConfig::XboxController::kMaxMotorVelocity,
                                     AppConfig::XboxController::kMaxMotorVelocity);
 
-  const float turnVelocity = joyX * AppConfig::XboxController::kMaxTurningVelocity * AppConfig::XboxController::kTurnScale;
-  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - turnVelocity,
+  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - stickTurnVelocity,
                                     -AppConfig::XboxController::kMaxMotorVelocity,
                                     AppConfig::XboxController::kMaxMotorVelocity);
-  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + turnVelocity,
+  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + stickTurnVelocity,
                                      -AppConfig::XboxController::kMaxMotorVelocity,
                                      AppConfig::XboxController::kMaxMotorVelocity);
 
