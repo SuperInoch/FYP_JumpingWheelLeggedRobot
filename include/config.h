@@ -52,8 +52,8 @@ constexpr unsigned long kCanBitrateSecondary = 250000UL;
 // Per-motor enable switches for staged bring-up.
 constexpr bool kEnableMotor1 = true;
 constexpr bool kEnableMotor2 = true;
-constexpr bool kEnableMotor3 = false;
-constexpr bool kEnableMotor4 = false;
+constexpr bool kEnableMotor3 = true;
+constexpr bool kEnableMotor4 = true;
 
 // Motor numbering from user request.
 constexpr unsigned char kJointMotorLeftNodeId = 0x01;   // motor 1

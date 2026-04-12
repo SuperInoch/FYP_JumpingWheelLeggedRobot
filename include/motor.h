@@ -20,6 +20,9 @@ bool setMirroredLegJointAngles(float legAngleRad);
 // Input: left/right wheel torques before sign correction and clamping.
 // Output: true when wheel torque targets were updated.
 bool setWheelTorques(float leftTorque, float rightTorque);
+// Input: left/right wheel velocities (turn/s) before sign correction and clamping.
+// Output: true when wheel velocity targets were updated.
+bool setWheelVelocities(float leftVelocity, float rightVelocity);
 // Input: nodeId and position-control parameters for one motor.
 // Output: true if nodeId exists and command was stored.
 bool setMotorPosition(uint8_t nodeId, float position, float kp, float kd, float velocityFeedforward = 0.0f);

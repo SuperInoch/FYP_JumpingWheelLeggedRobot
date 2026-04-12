@@ -169,7 +169,7 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
 
 // Commands a safe neutral pose and resets control outputs.
 void applySafeIdle() {
-  MotorControl::setWheelTorques(0.0f, 0.0f);
+  MotorControl::setWheelVelocities(0.0f, 0.0f);
   MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kStandardJointAngle);
 
   gDebug.leftTorqueCmd = 0.0f;
@@ -350,7 +350,7 @@ void process(const ImuData& imuData,
     gDebug.leftTorqueCmd = 0.0f;
     gDebug.rightTorqueCmd = 0.0f;
     MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
-    MotorControl::setWheelTorques(0.0f, 0.0f);
+    MotorControl::setWheelVelocities(0.0f, 0.0f);
     return;
   }
 
@@ -375,20 +375,20 @@ void process(const ImuData& imuData,
   const float wheelSpeed = 0.5f *
       (MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) +
        MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId));
-  const float desiredSpeed = forwardCmdFiltered * AppConfig::PID::kWheelSpeedTargetScale;
+  const float desiredSpeed = forwardCmdFiltered * AppConfig::XboxController::kMaxMotorVelocity;
   gDebug.speedTerm = speedPid.compute(desiredSpeed, wheelSpeed, dt);
 
   gDebug.balanceTorque = clampValue(gDebug.pitchTerm + gDebug.gyroTerm + gDebug.speedTerm,
-                                    -AppConfig::Motor::kWheelTorqueLimit,
-                                    AppConfig::Motor::kWheelTorqueLimit);
+                                    -AppConfig::XboxController::kMaxMotorVelocity,
+                                    AppConfig::XboxController::kMaxMotorVelocity);
 
-  const float turnTorque = joyX * AppConfig::Motor::kWheelTorqueLimit * AppConfig::XboxController::kTurnScale;
-  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - turnTorque,
-                                    -AppConfig::Motor::kWheelTorqueLimit,
-                                    AppConfig::Motor::kWheelTorqueLimit);
-  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + turnTorque,
-                                     -AppConfig::Motor::kWheelTorqueLimit,
-                                     AppConfig::Motor::kWheelTorqueLimit);
+  const float turnVelocity = joyX * AppConfig::XboxController::kMaxTurningVelocity * AppConfig::XboxController::kTurnScale;
+  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - turnVelocity,
+                                    -AppConfig::XboxController::kMaxMotorVelocity,
+                                    AppConfig::XboxController::kMaxMotorVelocity);
+  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + turnVelocity,
+                                     -AppConfig::XboxController::kMaxMotorVelocity,
+                                     AppConfig::XboxController::kMaxMotorVelocity);
 
   // === Secondary joint angle control: A-button gated jump sequence ===
   // 1. Read current joint motor positions
@@ -407,7 +407,7 @@ void process(const ImuData& imuData,
                                   AppConfig::Motor::kMaxJointAngle);
 
   MotorControl::setMirroredLegJointAngles(gDebug.legAngleCmd);
-  MotorControl::setWheelTorques(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
+  MotorControl::setWheelVelocities(gDebug.leftTorqueCmd, gDebug.rightTorqueCmd);
 }
 
 // Exposes latest debug/telemetry snapshot to other modules.

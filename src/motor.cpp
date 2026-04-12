@@ -266,7 +266,7 @@ bool configureControllerModes() {
 
         const uint8_t controlMode = (i < 2)
             ? static_cast<uint8_t>(CONTROL_MODE_POSITION_CONTROL)
-            : static_cast<uint8_t>(CONTROL_MODE_TORQUE_CONTROL);
+            : static_cast<uint8_t>(CONTROL_MODE_VELOCITY_CONTROL);
         const uint8_t inputMode = static_cast<uint8_t>(INPUT_MODE_PASSTHROUGH);
 
         if (!odrives[i]->setControllerMode(controlMode, inputMode)) {
@@ -296,7 +296,11 @@ bool sendCommandWithRetry(int motorIndex, const MotorCommand& cmd) {
                 sent = odrives[motorIndex]->setPosition(cmd.position, cmd.velocity, cmd.torque);
             }
         } else {
-            sent = odrives[motorIndex]->setTorque(cmd.torque);
+            if (cmd.velocityMode) {
+                sent = odrives[motorIndex]->setVelocity(cmd.velocity, cmd.torque);
+            } else {
+                sent = odrives[motorIndex]->setTorque(cmd.torque);
+            }
         }
 
         if (sent) {
@@ -393,7 +397,7 @@ bool isReady() {
 
 // Applies startup pose and zeros wheel torque as a safe initial command.
 bool initializeRobotPose(float legAngleRad) {
-	return setMirroredLegJointAngles(legAngleRad) && setWheelTorques(0.0f, 0.0f);
+    return setMirroredLegJointAngles(legAngleRad) && setWheelVelocities(0.0f, 0.0f);
 }
 
 // Converts requested leg angle into mirrored joint motor position targets.
@@ -430,12 +434,42 @@ bool setWheelTorques(float leftTorque, float rightTorque) {
     commands[2].kp = 0.0f;
     commands[2].kd = 0.0f;
     commands[2].torque = left;
+    commands[2].velocityMode = false;
     
     commands[3].position = 0.0f;
     commands[3].velocity = 0.0f;
     commands[3].kp = 0.0f;
     commands[3].kd = 0.0f;
     commands[3].torque = right;
+    commands[3].velocityMode = false;
+
+    return true;
+}
+
+// Applies left/right wheel velocity commands with clamp and motor sign mapping.
+bool setWheelVelocities(float leftVelocity, float rightVelocity) {
+    const float left = clampValue(leftVelocity,
+                                  -AppConfig::XboxController::kMaxMotorVelocity,
+                                  AppConfig::XboxController::kMaxMotorVelocity) *
+                       AppConfig::Motor::kWheelLeftSign;
+    const float right = clampValue(rightVelocity,
+                                   -AppConfig::XboxController::kMaxMotorVelocity,
+                                   AppConfig::XboxController::kMaxMotorVelocity) *
+                        AppConfig::Motor::kWheelRightSign;
+
+    commands[2].position = 0.0f;
+    commands[2].velocity = left;
+    commands[2].kp = 0.0f;
+    commands[2].kd = 0.0f;
+    commands[2].torque = 0.0f;
+    commands[2].velocityMode = true;
+
+    commands[3].position = 0.0f;
+    commands[3].velocity = right;
+    commands[3].kp = 0.0f;
+    commands[3].kd = 0.0f;
+    commands[3].torque = 0.0f;
+    commands[3].velocityMode = true;
     
     return true;
 }
@@ -631,8 +665,8 @@ bool checkJointLimits() {
         Serial.println("DISABLING ALL MOTORS. Hard reboot required.");
         Serial.println("==========================================\n");
         
-        // Instant motor disable: set all wheel torques to zero (joints already idle)
-        setWheelTorques(0.0f, 0.0f);
+        // Instant motor disable: set wheel velocity to zero (joints already idle)
+        setWheelVelocities(0.0f, 0.0f);
         
         // Perform one final update to send disable commands
         pumpEvents(canIntf);
