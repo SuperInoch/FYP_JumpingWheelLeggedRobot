@@ -116,7 +116,8 @@ constexpr float kJumpAngleOffset = kJumpAngleOffsetDeg * kDegToRad;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
-constexpr float kWheelLeftSign = 1.0f;
+// Back-to-back wheel installation: motor 3 needs inverted command sign.
+constexpr float kWheelLeftSign = -1.0f;
 constexpr float kWheelRightSign = 1.0f;
 } // namespace Motor
 

@@ -62,8 +62,9 @@ bool IMUManager::begin() {
   const float axf = static_cast<float>(ax);
   const float ayf = static_cast<float>(ay);
   const float azf = static_cast<float>(az);
-  fusedRollDeg = atan2f(ayf, azf + fabsf(axf)) * 57.29578f;
-  fusedPitchDeg = atan2f(axf, azf + fabsf(ayf)) * -57.29578f;
+  // Robot frame: +Y points forward, +X points to the right.
+  fusedRollDeg = atan2f(axf, azf + fabsf(ayf)) * 57.29578f;
+  fusedPitchDeg = atan2f(ayf, azf + fabsf(axf)) * -57.29578f;
   lastUpdateMs = millis();
   imuInitialized = true;
   return true;
@@ -102,8 +103,9 @@ bool IMUManager::update() {
   const float ayf = static_cast<float>(ay);
   const float azf = static_cast<float>(az);
 
-  const float accRollDeg = atan2f(ayf, azf + fabsf(axf)) * 57.29578f;
-  const float accPitchDeg = atan2f(axf, azf + fabsf(ayf)) * -57.29578f;
+  // Robot frame: +Y forward, +X right.
+  const float accRollDeg = atan2f(axf, azf + fabsf(ayf)) * 57.29578f;
+  const float accPitchDeg = atan2f(ayf, azf + fabsf(axf)) * -57.29578f;
 
   unsigned long nowMs = millis();
   float dt = static_cast<float>(nowMs - lastUpdateMs) * 0.001f;
@@ -114,23 +116,20 @@ bool IMUManager::update() {
 
   // Lesson uses gyro scale 65.5 LSB/(deg/s) with corresponding gyro config.
   const float gyroXDegPerSec = static_cast<float>(gx) / 65.5f;
-  float gyroYDegPerSec = static_cast<float>(gy) / 65.5f;
-  float gyroZDegPerSec = static_cast<float>(gz) / 65.5f;
-
-  gyroYDegPerSec = lowPassFilter(gyroYDegPerSec, data_.yawRateDegPerSec, AppConfig::IMU::kGyroYLowPassAlpha);
-  if (gyroZDegPerSec > -AppConfig::IMU::kGyroZDeadband && gyroZDegPerSec < AppConfig::IMU::kGyroZDeadband) {
-    gyroZDegPerSec = 0.0f;
-  }
+  const float gyroYDegPerSec = static_cast<float>(gy) / 65.5f;
+  float gyroPitchRateDegPerSec =
+      lowPassFilter(gyroXDegPerSec, data_.yawRateDegPerSec, AppConfig::IMU::kGyroYLowPassAlpha);
 
   fusedRollDeg =
-      (AppConfig::IMU::kGyroCoef * (fusedRollDeg + gyroXDegPerSec * dt)) + (AppConfig::IMU::kAccCoef * accRollDeg);
+      (AppConfig::IMU::kGyroCoef * (fusedRollDeg + gyroYDegPerSec * dt)) + (AppConfig::IMU::kAccCoef * accRollDeg);
   fusedPitchDeg =
-      (AppConfig::IMU::kGyroCoef * (fusedPitchDeg + gyroYDegPerSec * dt)) + (AppConfig::IMU::kAccCoef * accPitchDeg);
+      (AppConfig::IMU::kGyroCoef * (fusedPitchDeg + gyroPitchRateDegPerSec * dt)) + (AppConfig::IMU::kAccCoef * accPitchDeg);
 
   data_.rollDeg = fusedRollDeg;
   data_.pitchDeg = fusedPitchDeg - AppConfig::IMU::kRemoteBalanceOffsetDeg;
 
-  data_.yawRateDegPerSec = gyroYDegPerSec;
+  // Legacy field name kept for interface compatibility; this now carries pitch-axis rate.
+  data_.yawRateDegPerSec = gyroPitchRateDegPerSec;
 
   return true;
 }
