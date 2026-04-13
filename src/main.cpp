@@ -52,6 +52,30 @@ bool waitForXboxSignal() {
   return true;
 }
 
+// Requires both joint motors to be near zero pose before startup continues.
+bool checkJointZeroPoseOnStartup() {
+  const float joint1RawTurns = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
+  const float joint2RawTurns = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorRightNodeId);
+  const float toleranceTurns = AppConfig::Motor::kStartupZeroPoseToleranceTurns;
+
+  const bool joint1AtZero = fabsf(joint1RawTurns) <= toleranceTurns;
+  const bool joint2AtZero = fabsf(joint2RawTurns) <= toleranceTurns;
+  if (joint1AtZero && joint2AtZero) {
+    return true;
+  }
+
+  Serial.println("Joint zero-pose check failed.");
+  Serial.print("Expected |m1|,|m2| <= ");
+  Serial.print(toleranceTurns, 3);
+  Serial.println(" turns before startup.");
+  Serial.print("Current m1=");
+  Serial.print(joint1RawTurns, 3);
+  Serial.print(", m2=");
+  Serial.println(joint2RawTurns, 3);
+  Serial.println("Place robot at zero pose and reboot.");
+  return false;
+}
+
 } // namespace
 
 // Initializes serial, sensors, comms, motors, and control pipeline.
@@ -88,8 +112,21 @@ void setup() {
     }
   }
 
-    if (!MotorControl::initializeRobotPose(0.0f)) {
-    Serial.println("Robot pose initialization failed.");
+  if (AppConfig::Behavior::kRequireJointZeroPoseOnStartup) {
+    if (!checkJointZeroPoseOnStartup()) {
+      while (true) {
+        delay(100);
+      }
+    }
+  } else {
+    Serial.println("Skipping joint zero-pose check (kRequireJointZeroPoseOnStartup=false)");
+  }
+
+  Serial.print("Moving joints from zero pose to default offset: ");
+  Serial.print(AppConfig::Motor::kDefaultFromZeroDeg, 2);
+  Serial.println(" deg");
+  if (!MotorControl::initializeRobotPose(AppConfig::Motor::kStandardJointAngle)) {
+    Serial.println("Robot default-pose initialization failed.");
     while (true) {
       delay(100);
     }

@@ -47,7 +47,7 @@ bool debouncedAPressed = false;          // Debounced A state used by jump state
 unsigned long aDebounceStartTimeMs = 0;  // Raw-edge timestamp for debounce window.
 
 // Hold jump extension for 1 second after A release, then recover to default.
-constexpr unsigned long kJumpHoldMs = 1000;
+constexpr unsigned long kJumpHoldMs = 500;
 constexpr unsigned long kRecoverToIdleMs = 150;
 constexpr unsigned long kAButtonDebounceMs = 35;
 

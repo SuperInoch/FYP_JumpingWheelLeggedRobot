@@ -43,6 +43,8 @@ constexpr unsigned long kMonitorPrintIntervalMs = 100;
 constexpr unsigned long kMainLoopDelayMs = 5;
 // If true, setup waits for Xbox packets before enabling motors.
 constexpr bool kRequireXboxSignalOnStartup = false;
+// If true, setup requires both joint motors to be near zero pose before startup continues.
+constexpr bool kRequireJointZeroPoseOnStartup = false;
 } // namespace Behavior
 
 namespace Motor {
@@ -81,29 +83,27 @@ constexpr float kJointKd = 1.0f;
 // Joint angle tuning is authored in degrees.
 // Motor 1 physical reference:
 // - Zero pose is the raw driver reading of 0.
-// - Default pose is per-motor offset from zero pose.
-// - Standard pose is a common offset from default pose.
+// - Motors 1 and 2 share this same zero pose reference.
+// - Default pose is a common offset from zero pose.
+// - Standard pose is controlled relative to default pose.
 // Runtime control code consumes radians via derived constants below.
 constexpr float kDegToRad = PI / 180.0f;
 constexpr float kRadToDeg = 180.0f / PI;
 
-// Per-motor default position offsets from zero pose in motor turns.
-// Tune these so your preferred "default" posture is reached when standard offset is 0 deg.
-constexpr float kJoint1DefaultOffsetTurns = 0.0f;
-constexpr float kJoint2DefaultOffsetTurns = 0.0f;
-
-// Common standard angle offset from default pose.
+// Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
-constexpr float kStandardFromDefaultDeg = 0.0f;
+constexpr float kDefaultFromZeroDeg = -24.06967262304f;
+constexpr float kDefaultFromZero = kDefaultFromZeroDeg * kDegToRad;
+constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
 
 // Standard pose in controller coordinates (relative to default pose).
-constexpr float kStandardJointAngleDeg = kStandardFromDefaultDeg;
+constexpr float kStandardJointAngleDeg = 0.0f;
 constexpr float kStandardJointAngle = kStandardJointAngleDeg * kDegToRad;
 
 // Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngleDeg = -40.0f;  // Compressed/folded from default pose
-constexpr float kMaxJointAngleDeg = 30.0f;   // Extended from default pose
+constexpr float kMinJointAngleDeg = -26.0f;  // Compressed/folded from default pose
+constexpr float kMaxJointAngleDeg = 40.0f;   // Extended from default pose
 constexpr float kMinJointAngle = kMinJointAngleDeg * kDegToRad;
 constexpr float kMaxJointAngle = kMaxJointAngleDeg * kDegToRad;
 

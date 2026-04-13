@@ -402,10 +402,11 @@ bool initializeRobotPose(float legAngleRad) {
 
 // Converts requested leg angle into mirrored joint motor position targets.
 bool setMirroredLegJointAngles(float legAngleRad) {
+    const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float motorTurnsDelta = (legAngleRad / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     // Positive logical joint angle is anti-clockwise on motor 1.
-    const float joint1Target = AppConfig::Motor::kJoint1DefaultOffsetTurns - motorTurnsDelta;
-    const float joint2Target = AppConfig::Motor::kJoint2DefaultOffsetTurns + motorTurnsDelta;
+    const float joint1Target = -defaultTurns - motorTurnsDelta;
+    const float joint2Target = defaultTurns + motorTurnsDelta;
     
     commands[0].position = joint1Target;
     commands[0].velocity = 0.0f;
@@ -522,12 +523,13 @@ float getJointAngleRad(uint8_t nodeId) {
         return 0.0f;
     }
 
+    const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float turns = feedback[idx].pos;
     if (nodeId == AppConfig::Motor::kJointMotorLeftNodeId) {
-        return -(turns - AppConfig::Motor::kJoint1DefaultOffsetTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return -(turns + defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
     if (nodeId == AppConfig::Motor::kJointMotorRightNodeId) {
-        return (turns - AppConfig::Motor::kJoint2DefaultOffsetTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return (turns - defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
 
     return 0.0f;

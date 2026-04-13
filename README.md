@@ -37,13 +37,15 @@
 - Controller: Xbox Controller
 
 ## Motor Calibration Workflow (for motor 1 & 2)
-1. Set the robot for the ideal default pose.
-2. Use the SteadyWin Motor Wizard to set the current motors' angle as zero position.
+1. Set the robot for the ideal zero pose.
+2. Turn on the motor will auto reset the current position to zero reading.
+  - Assume turning on the robot at 95 mm height from the base to floor
+  - Zero position's angle is 10.93032737696 degrees
 
 ## Joint Position Model
 - Zero pose: motor driver reading near 0 turns.
-- Standard pose is a common angle offset from zero pose:
-  - kStandardFromDefaultDeg
+- Defualt pose is a common angle offset from zero pose:
+  - kDefaultFromZeroDeg
 - Motor 2 mirrors motor 1 in joint-angle space (opposite sign).
 
 ## Safety Angle Limits
