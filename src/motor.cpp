@@ -58,6 +58,9 @@ bool motorEnabled[kMotorCount] = {
     AppConfig::Motor::kEnableMotor4,
 };
 bool hasAnyFeedback = false;
+float joint1ZeroTurns = 0.0f;
+float joint2ZeroTurns = 0.0f;
+bool jointZeroCaptured = false;
 
 // ODriveCAN objects for each motor (accessed by onCanMessage in global scope)
 HardwareCAN& canIntf = CAN;
@@ -316,6 +319,28 @@ bool sendCommandWithRetry(int motorIndex, const MotorCommand& cmd) {
     return false;
 }
 
+// Captures startup joint encoder readings as zero-pose baselines.
+bool captureJointZeroReference() {
+    const int joint1Idx = findMotorIndexByNodeId(AppConfig::Motor::kJointMotorLeftNodeId);
+    const int joint2Idx = findMotorIndexByNodeId(AppConfig::Motor::kJointMotorRightNodeId);
+    if (joint1Idx < 0 || joint2Idx < 0) {
+        return false;
+    }
+    if (!feedback[joint1Idx].valid || !feedback[joint2Idx].valid) {
+        return false;
+    }
+
+    joint1ZeroTurns = feedback[joint1Idx].pos;
+    joint2ZeroTurns = feedback[joint2Idx].pos;
+    jointZeroCaptured = true;
+
+    Serial.print("[MOTOR] Startup zero captured m1=");
+    Serial.print(joint1ZeroTurns, 4);
+    Serial.print(", m2=");
+    Serial.println(joint2ZeroTurns, 4);
+    return true;
+}
+
 } // namespace
 
 // CAN message pump callback - called by Arduino_CAN library's pumpEvents()
@@ -352,7 +377,7 @@ bool begin() {
         Serial.println("ERROR: ODrive not responding on CAN bus");
         return false;
     }
-    
+
     // Enable closed-loop control on all motors
     if (!enableClosedLoopControl()) {
         Serial.println("WARNING: Some motors may not be in closed-loop control");
@@ -360,6 +385,22 @@ bool begin() {
 
     if (!configureControllerModes()) {
         Serial.println("WARNING: Some motors may not accept requested control modes");
+    }
+
+    // After state/mode transitions, refresh encoder feedback and capture zero pose baseline.
+    for (int i = 0; i < kMotorCount; ++i) {
+        if (!motorEnabled[i] || odrives[i] == nullptr) {
+            continue;
+        }
+        Get_Encoder_Estimates_msg_t dummy;
+        odrives[i]->getFeedback(dummy, 10);
+    }
+    for (int i = 0; i < 20; ++i) {
+        pumpEvents(canIntf);
+        delay(2);
+    }
+    if (!captureJointZeroReference()) {
+        Serial.println("WARNING: Failed to capture startup zero reference; using 0-turn fallback.");
     }
     
     motorReady = true;
@@ -404,21 +445,28 @@ bool initializeRobotPose(float legAngleRad) {
 bool setMirroredLegJointAngles(float legAngleRad) {
     const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float motorTurnsDelta = (legAngleRad / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint1TrimTurns = (AppConfig::Motor::kJoint1Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint2TrimTurns = (AppConfig::Motor::kJoint2Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint1Zero = jointZeroCaptured ? joint1ZeroTurns : 0.0f;
+    const float joint2Zero = jointZeroCaptured ? joint2ZeroTurns : 0.0f;
     // Positive logical joint angle is anti-clockwise on motor 1.
-    const float joint1Target = -defaultTurns - motorTurnsDelta;
-    const float joint2Target = defaultTurns + motorTurnsDelta;
+    // Motor 2 mirrors motor 1 in joint-angle space.
+    const float joint1Target = joint1Zero - defaultTurns + motorTurnsDelta + joint1TrimTurns;
+    const float joint2Target = joint2Zero + defaultTurns - motorTurnsDelta + joint2TrimTurns;
     
     commands[0].position = joint1Target;
     commands[0].velocity = 0.0f;
     commands[0].kp = AppConfig::Motor::kJointKp;
     commands[0].kd = AppConfig::Motor::kJointKd;
     commands[0].torque = 0.0f;
+    commands[0].velocityMode = false;
     
     commands[1].position = joint2Target;
     commands[1].velocity = 0.0f;
     commands[1].kp = AppConfig::Motor::kJointKp;
     commands[1].kd = AppConfig::Motor::kJointKd;
     commands[1].torque = 0.0f;
+    commands[1].velocityMode = false;
     
     return true;
 }
@@ -525,11 +573,13 @@ float getJointAngleRad(uint8_t nodeId) {
 
     const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float turns = feedback[idx].pos;
+    const float joint1Zero = jointZeroCaptured ? joint1ZeroTurns : 0.0f;
+    const float joint2Zero = jointZeroCaptured ? joint2ZeroTurns : 0.0f;
     if (nodeId == AppConfig::Motor::kJointMotorLeftNodeId) {
-        return -(turns + defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return (joint1Zero - defaultTurns - turns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
     if (nodeId == AppConfig::Motor::kJointMotorRightNodeId) {
-        return (turns - defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return (turns - joint2Zero - defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
 
     return 0.0f;

@@ -42,7 +42,7 @@ namespace Behavior {
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
 constexpr unsigned long kMainLoopDelayMs = 5;
 // If true, setup waits for Xbox packets before enabling motors.
-constexpr bool kRequireXboxSignalOnStartup = false;
+constexpr bool kRequireXboxSignalOnStartup = true;
 // If true, setup requires both joint motors to be near zero pose before startup continues.
 constexpr bool kRequireJointZeroPoseOnStartup = false;
 } // namespace Behavior
@@ -93,7 +93,13 @@ constexpr float kRadToDeg = 180.0f / PI;
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
 constexpr float kDefaultFromZeroDeg = -24.06967262304f;
+// Per-joint trim offsets for mechanical indexing mismatch at equal-height default pose.
+// Positive values command additional anti-clockwise rotation in motor coordinates.
+constexpr float kJoint1TrimDeg = -1.0f;
+constexpr float kJoint2TrimDeg = 0.0f;
 constexpr float kDefaultFromZero = kDefaultFromZeroDeg * kDegToRad;
+constexpr float kJoint1Trim = kJoint1TrimDeg * kDegToRad;
+constexpr float kJoint2Trim = kJoint2TrimDeg * kDegToRad;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
 
 // Default pose in controller coordinates (relative to default pose baseline).
@@ -102,15 +108,15 @@ constexpr float kDefaultJointAngle = kDefaultJointAngleDeg * kDegToRad;
 
 // Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngleDeg = -26.5f;  // Compressed/folded from default pose
-constexpr float kMaxJointAngleDeg = 40.0f;   // Extended from default pose
+constexpr float kMinJointAngleDeg = -22.401f;  // Compressed/folded from default pose
+constexpr float kMaxJointAngleDeg = 35.0f;   // Extended from default pose
 constexpr float kMinJointAngle = kMinJointAngleDeg * kDegToRad;
 constexpr float kMaxJointAngle = kMaxJointAngleDeg * kDegToRad;
 
 // Pre-jump compression and jump extension offsets relative to the standard pose.
 // Negative sneak offset shortens the legs; positive jump offset extends them.
-constexpr float kSneakAngleOffsetDeg = 25.0f;   // A pressed target: +25 deg
-constexpr float kJumpAngleOffsetDeg = -20.0f;   // A released target: -20 deg
+constexpr float kSneakAngleOffsetDeg = -25.0f;   // A pressed target: +25 deg
+constexpr float kJumpAngleOffsetDeg = 20.0f;   // A released target: -20 deg
 constexpr float kSneakAngleOffset = kSneakAngleOffsetDeg * kDegToRad;
 constexpr float kJumpAngleOffset = kJumpAngleOffsetDeg * kDegToRad;
 

@@ -12,6 +12,9 @@ namespace {
 
 constexpr float kBalancePitchErrorLimitDeg = 6.0f;
 constexpr float kBalanceYawRateLimitDegPerSec = 120.0f;
+constexpr unsigned long kStartupPoseSettleMs = 1200UL;
+constexpr unsigned long kStartupPoseUpdateDelayMs = 5UL;
+constexpr unsigned long kStartupPosePrintIntervalMs = 200UL;
 
 // Blocks startup until at least one valid Xbox packet is observed.
 bool waitForXboxSignal() {
@@ -130,6 +133,15 @@ void setup() {
     while (true) {
       delay(100);
     }
+  }
+
+  // Drive startup pose commands for a short window before enforcing hard limits.
+  Serial.println("Settling joints to default pose...");
+  const unsigned long settleStartMs = millis();
+  unsigned long lastSettlePrintMs = settleStartMs;
+  while (millis() - settleStartMs < kStartupPoseSettleMs) {
+    MotorControl::update();
+    delay(kStartupPoseUpdateDelayMs);
   }
 
   // Safety check: verify joint angles are within physical limits
