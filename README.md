@@ -38,7 +38,7 @@
 
 ## Motor Calibration Workflow (for motor 1 & 2)
 1. Set the robot for the ideal zero pose.
-2. Turn on the motor will auto reset the current position to zero reading.
+2. Turn on the robot will auto reset the current position to zero reading.
   - Assume turning on the robot at 95 mm height from the base to floor
   - Zero position's angle is 10.93032737696 degrees
 
