@@ -30,6 +30,10 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKi,
                        AppConfig::PID::kSpeedPidKd);
 
+constexpr float kJoystickToPidTargetScale = 1.0f / 25.0f;
+constexpr float kAngleOutputToWheelVelocityScale = 0.04f;
+constexpr float kTurnOutputToWheelVelocityScale = 0.04f;
+
 // Jump state machine enumerator.
 enum JumpState {
   JUMP_IDLE,       // Legs at standard height, waiting for A button.
@@ -278,14 +282,15 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
 
   const float error = setpoint - measurement;
 
-  // Match lesson implementation: Tustin integral with bounded integrator.
-  integral_ += ki_ * dtSeconds * 0.5f * (error + previousError_);
-  integral_ = clampValue(integral_,
-                         minOutput_ / AppConfig::PID::kIntegratorLimitDivisor,
-                         maxOutput_ / AppConfig::PID::kIntegratorLimitDivisor);
+  // Match PID.c style: accumulate pure error, then multiply by Ki.
+  if (ki_ != 0.0f) {
+    integral_ += error;
+  } else {
+    integral_ = 0.0f;
+  }
 
-  const float derivative = (error - previousError_) / dtSeconds;
-  float output = kp_ * error + integral_ + kd_ * derivative;
+  const float derivative = error - previousError_;
+  float output = kp_ * error + ki_ * integral_ + kd_ * derivative;
   output = clampValue(output, minOutput_, maxOutput_);
 
   // Optional output slew-rate limiting from the lesson PID style.
@@ -307,9 +312,9 @@ namespace RobotControl {
 
 // Initializes controller limits, defaults, and safe idle state.
 void begin() {
-  pitchPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
-  gyroPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
-  speedPid.setOutputLimits(-AppConfig::PID::kPidOutputLimit, AppConfig::PID::kPidOutputLimit);
+  pitchPid.setOutputLimits(AppConfig::PID::kAnglePidOutputMin, AppConfig::PID::kAnglePidOutputMax);
+  gyroPid.setOutputLimits(AppConfig::PID::kTurnPidOutputMin, AppConfig::PID::kTurnPidOutputMax);
+  speedPid.setOutputLimits(AppConfig::PID::kSpeedPidOutputMin, AppConfig::PID::kSpeedPidOutputMax);
 
   pitchPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
   gyroPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
@@ -414,38 +419,34 @@ void process(const ImuData& imuData,
 
   joyY = -joyY;
 
-  const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
-  const float pitchErrorFromUprightDeg = fabsf(imuData.pitchDeg - AppConfig::PID::kPitchSetpointDeg);
-  const float forwardAuthority = computeForwardAuthority(pitchErrorFromUprightDeg);
-  const WheelSpeedTargets stickTargets = mapLeftStickToWheelSpeeds(joyX, joyY, turbo, forwardAuthority);
-  const float stickForwardVelocity = 0.5f * (stickTargets.leftVelocity + stickTargets.rightVelocity);
-  const float stickTurnVelocity = 0.5f * (stickTargets.rightVelocity - stickTargets.leftVelocity);
-  const float forwardCmdUnit = clampValue(stickForwardVelocity / AppConfig::XboxController::kMaxMotorVelocity,
-                                          -1.0f,
-                                          1.0f);
-  forwardCmdFiltered = lowPass(forwardCmdFiltered, forwardCmdUnit, AppConfig::PID::kForwardCommandFilterAlpha);
+    const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
 
-  gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg +
-                           forwardCmdFiltered * AppConfig::PID::kPitchOffsetFromCommandDeg;
-  gDebug.pitchTerm = pitchPid.compute(gDebug.desiredPitchDeg, imuData.pitchDeg, dt);
-  gDebug.gyroTerm = gyroPid.compute(0.0f, imuData.yawRateDegPerSec, dt);
+    const float speedTarget = joyY * AppConfig::PID::kStickTargetMax * turbo * kJoystickToPidTargetScale;
+    const float turnTarget = joyX * AppConfig::PID::kStickTargetMax * kJoystickToPidTargetScale;
 
-  const float wheelSpeed = 0.5f *
-      (MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) +
-       MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId));
-  const float desiredSpeed = stickForwardVelocity;
-  gDebug.speedTerm = speedPid.compute(desiredSpeed, wheelSpeed, dt);
+    const float wheelLeftVelocity =
+      MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) * AppConfig::Motor::kWheelLeftSign;
+    const float wheelRightVelocity =
+      MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId) * AppConfig::Motor::kWheelRightSign;
+    const float wheelSpeedAvg = 0.5f * (wheelLeftVelocity + wheelRightVelocity);
+    const float wheelTurnRate = 0.5f * (wheelRightVelocity - wheelLeftVelocity);
 
-  gDebug.balanceTorque = clampValue(gDebug.pitchTerm + gDebug.gyroTerm + gDebug.speedTerm,
-                                    -AppConfig::XboxController::kMaxMotorVelocity,
-                                    AppConfig::XboxController::kMaxMotorVelocity);
+    // PID-folder style cascade: speed PID shifts angle target, angle PID drives wheel balance output.
+    gDebug.speedTerm = speedPid.compute(speedTarget, wheelSpeedAvg, dt);
+    gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg + gDebug.speedTerm;
+    gDebug.pitchTerm = pitchPid.compute(gDebug.desiredPitchDeg, imuData.pitchDeg, dt);
+    gDebug.gyroTerm = gyroPid.compute(turnTarget, wheelTurnRate, dt);
 
-  gDebug.leftTorqueCmd = clampValue(gDebug.balanceTorque - stickTurnVelocity,
-                                    -AppConfig::XboxController::kMaxMotorVelocity,
-                                    AppConfig::XboxController::kMaxMotorVelocity);
-  gDebug.rightTorqueCmd = clampValue(gDebug.balanceTorque + stickTurnVelocity,
-                                     -AppConfig::XboxController::kMaxMotorVelocity,
-                                     AppConfig::XboxController::kMaxMotorVelocity);
+    const float balanceVelocity = gDebug.pitchTerm * kAngleOutputToWheelVelocityScale;
+    const float turnVelocity = gDebug.gyroTerm * kTurnOutputToWheelVelocityScale;
+    gDebug.balanceTorque = balanceVelocity;
+
+    gDebug.leftTorqueCmd = clampValue(balanceVelocity - turnVelocity,
+                    -AppConfig::XboxController::kMaxMotorVelocity,
+                    AppConfig::XboxController::kMaxMotorVelocity);
+    gDebug.rightTorqueCmd = clampValue(balanceVelocity + turnVelocity,
+                     -AppConfig::XboxController::kMaxMotorVelocity,
+                     AppConfig::XboxController::kMaxMotorVelocity);
 
   // === Secondary joint angle control: A-button gated jump sequence ===
   // 1. Read current joint motor positions
