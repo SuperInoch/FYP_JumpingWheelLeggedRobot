@@ -5,11 +5,6 @@
 
 namespace AppConfig {
 namespace PID {
-constexpr float kPitchKp = -0.18f;
-constexpr float kPitchKi = 0.0f;
-constexpr float kPitchKd = 0.015f;
-constexpr float kOutputMin = -6.0f;
-constexpr float kOutputMax = 6.0f;
 constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
