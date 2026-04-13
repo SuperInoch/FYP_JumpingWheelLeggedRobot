@@ -96,13 +96,13 @@ constexpr float kDefaultFromZeroDeg = -24.06967262304f;
 constexpr float kDefaultFromZero = kDefaultFromZeroDeg * kDegToRad;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
 
-// Standard pose in controller coordinates (relative to default pose).
-constexpr float kStandardJointAngleDeg = 0.0f;
-constexpr float kStandardJointAngle = kStandardJointAngleDeg * kDegToRad;
+// Default pose in controller coordinates (relative to default pose baseline).
+constexpr float kDefaultJointAngleDeg = 0.0f;
+constexpr float kDefaultJointAngle = kDefaultJointAngleDeg * kDegToRad;
 
 // Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngleDeg = -26.0f;  // Compressed/folded from default pose
+constexpr float kMinJointAngleDeg = -26.5f;  // Compressed/folded from default pose
 constexpr float kMaxJointAngleDeg = 40.0f;   // Extended from default pose
 constexpr float kMinJointAngle = kMinJointAngleDeg * kDegToRad;
 constexpr float kMaxJointAngle = kMaxJointAngleDeg * kDegToRad;

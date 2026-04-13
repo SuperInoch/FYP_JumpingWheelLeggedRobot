@@ -198,20 +198,20 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
   }
 
   // Output target joint angle based on current state
-  float targetAngle = AppConfig::Motor::kStandardJointAngle;
+  float targetAngle = AppConfig::Motor::kDefaultJointAngle;
   
   switch (jumpState) {
     case JUMP_IDLE:
-      targetAngle = AppConfig::Motor::kStandardJointAngle;
+      targetAngle = AppConfig::Motor::kDefaultJointAngle;
       break;
     case JUMP_SNEAKING:
-      targetAngle = AppConfig::Motor::kStandardJointAngle + AppConfig::Motor::kSneakAngleOffset;
+      targetAngle = AppConfig::Motor::kDefaultJointAngle + AppConfig::Motor::kSneakAngleOffset;
       break;
     case JUMP_JUMPING:
-      targetAngle = AppConfig::Motor::kStandardJointAngle + AppConfig::Motor::kJumpAngleOffset;
+      targetAngle = AppConfig::Motor::kDefaultJointAngle + AppConfig::Motor::kJumpAngleOffset;
       break;
     case JUMP_AIRBORNE:
-      targetAngle = AppConfig::Motor::kStandardJointAngle;
+      targetAngle = AppConfig::Motor::kDefaultJointAngle;
       break;
   }
 
@@ -221,11 +221,11 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
 // Commands a safe neutral pose and resets control outputs.
 void applySafeIdle() {
   MotorControl::setWheelVelocities(0.0f, 0.0f);
-  MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kStandardJointAngle);
+  MotorControl::setMirroredLegJointAngles(AppConfig::Motor::kDefaultJointAngle);
 
   gDebug.leftTorqueCmd = 0.0f;
   gDebug.rightTorqueCmd = 0.0f;
-  gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle;
+  gDebug.legAngleCmd = AppConfig::Motor::kDefaultJointAngle;
   gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
   gDebug.pitchTerm = 0.0f;
   gDebug.gyroTerm = 0.0f;
@@ -320,7 +320,7 @@ void begin() {
   gDebug.dtSeconds = AppConfig::XboxController::kControlDtFallbackSec;
   gDebug.leftTorqueCmd = 0.0f;
   gDebug.rightTorqueCmd = 0.0f;
-  gDebug.legAngleCmd = AppConfig::Motor::kStandardJointAngle;
+  gDebug.legAngleCmd = AppConfig::Motor::kDefaultJointAngle;
   gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
   gDebug.pitchTerm = 0.0f;
   gDebug.gyroTerm = 0.0f;

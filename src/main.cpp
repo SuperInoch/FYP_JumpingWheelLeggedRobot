@@ -125,7 +125,7 @@ void setup() {
   Serial.print("Moving joints from zero pose to default offset: ");
   Serial.print(AppConfig::Motor::kDefaultFromZeroDeg, 2);
   Serial.println(" deg");
-  if (!MotorControl::initializeRobotPose(AppConfig::Motor::kStandardJointAngle)) {
+  if (!MotorControl::initializeRobotPose(AppConfig::Motor::kDefaultJointAngle)) {
     Serial.println("Robot default-pose initialization failed.");
     while (true) {
       delay(100);
