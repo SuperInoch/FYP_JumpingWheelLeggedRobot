@@ -31,7 +31,7 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKd);
 
 constexpr float kJoystickToPidTargetScale = 1.0f / 25.0f;
-constexpr float kAngleOutputToWheelVelocityScale = 0.04f;
+constexpr float kAngleOutputToWheelVelocityScale = 0.08f;
 constexpr float kTurnOutputToWheelVelocityScale = 0.04f;
 
 // Jump state machine enumerator.
@@ -284,12 +284,13 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
 
   // Match PID.c style: accumulate pure error, then multiply by Ki.
   if (ki_ != 0.0f) {
-    integral_ += error;
+    integral_ += error * dtSeconds;
   } else {
     integral_ = 0.0f;
   }
 
-  const float derivative = error - previousError_;
+  const float derivative = (error - previousError_) / dtSeconds;
+
   float output = kp_ * error + ki_ * integral_ + kd_ * derivative;
   output = clampValue(output, minOutput_, maxOutput_);
 

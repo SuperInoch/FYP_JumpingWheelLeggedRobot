@@ -9,17 +9,17 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 3.0f;
-constexpr float kPitchPidKi = 0.1f;
-constexpr float kPitchPidKd = 3.0f;
+constexpr float kPitchPidKp = 60.0f;
+constexpr float kPitchPidKi = 6.0f;
+constexpr float kPitchPidKd = 15.0f;
 
 constexpr float kGyroPidKp = 4.0f;
 constexpr float kGyroPidKi = 3.0f;
 constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 2.0f;
+constexpr float kSpeedPidKp = 10.0f;
 constexpr float kSpeedPidKi = 0.05f;
-constexpr float kSpeedPidKd = 0.0f;
+constexpr float kSpeedPidKd = 4.0f;
 
 constexpr float kAnglePidOutputMin = -100.0f;
 constexpr float kAnglePidOutputMax = 100.0f;
@@ -38,7 +38,7 @@ constexpr float kDefaultOutputMax = 5.0f;
 namespace Behavior {
 // Serial debug print interval.
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
-constexpr unsigned long kMainLoopDelayMs = 5;
+constexpr unsigned long kMainLoopDelayMs = 3;
 // If true, setup waits for Xbox packets before enabling motors.
 constexpr bool kRequireXboxSignalOnStartup = true;
 // If true, setup requires both joint motors to be near zero pose before startup continues.
@@ -76,7 +76,7 @@ constexpr float kRadToDeg = 180.0f / PI;
 
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
-constexpr float kDefaultFromZero = -24.06967262304f * PI / 180.0f;
+constexpr float kDefaultFromZero = -20.0f * PI / 180.0f;
 constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
@@ -86,12 +86,12 @@ constexpr float kDefaultJointAngle = 0.0f;
 
 // Joint angle limits relative to the default pose.
 // TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngle = -22.401f * PI / 180.0f;  // Compressed/folded from default pose
+constexpr float kMinJointAngle = -18.401f * PI / 180.0f;  // Compressed/folded from default pose
 constexpr float kMaxJointAngle = 35.0f * PI / 180.0f;   // Extended from default pose
 
 // Pre-jump compression and jump extension offsets relative to the standard pose.
 // Negative sneak offset shortens the legs; positive jump offset extends them.
-constexpr float kSneakAngleOffset = -25.0f * PI / 180.0f;   // A pressed target: +25 deg
+constexpr float kSneakAngleOffset = -20.0f * PI / 180.0f;   // A pressed target: +25 deg
 constexpr float kJumpAngleOffset = 20.0f * PI / 180.0f;   // A released target: -20 deg
 
 // Wheel balance output settings.
