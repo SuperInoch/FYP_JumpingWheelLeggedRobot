@@ -157,7 +157,7 @@ void resetPidStates() {
 }
 
 // Jump state machine: orchestrates sneak -> jump -> airborne -> landing sequence.
-// Returns the target joint angle based on current jump state and transitions.
+// Returns the target joint angle relative to the zero pose.
 float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData& imuData, unsigned long nowMs) {
   (void)currentMotorPos;
   (void)imuData;
@@ -193,7 +193,7 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       break;
 
     case JUMP_AIRBORNE:
-      // Recovery: settle at standard/default pose then return to idle.
+      // Recovery: settle back to the default zero-referenced pose then return to idle.
       if ((nowMs - jumpStateStartTimeMs) >= kRecoverToIdleMs) {
         jumpState = JUMP_IDLE;
         jumpStateStartTimeMs = nowMs;
@@ -201,7 +201,7 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       break;
   }
 
-  // Output target joint angle based on current state
+  // Output target joint angle based on current state.
   float targetAngle = AppConfig::Motor::kDefaultJointAngle;
   
   switch (jumpState) {
@@ -209,10 +209,10 @@ float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData
       targetAngle = AppConfig::Motor::kDefaultJointAngle;
       break;
     case JUMP_SNEAKING:
-      targetAngle = AppConfig::Motor::kDefaultJointAngle + AppConfig::Motor::kSneakAngleOffset;
+      targetAngle = AppConfig::Motor::kSneakJointAngle;
       break;
     case JUMP_JUMPING:
-      targetAngle = AppConfig::Motor::kDefaultJointAngle + AppConfig::Motor::kJumpAngleOffset;
+      targetAngle = AppConfig::Motor::kJumpJointAngle;
       break;
     case JUMP_AIRBORNE:
       targetAngle = AppConfig::Motor::kDefaultJointAngle;
