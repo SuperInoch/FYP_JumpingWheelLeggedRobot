@@ -85,4 +85,4 @@ Assume starting on a flat floor/surface
 
 ## Remark
 This is the code for the Arduino UNO R4 Minima.
-The code for ESP32: (link)
+The code for ESP32: https://github.com/SuperInoch/FYP_JumpingWheelLeggedRobot_Controller
