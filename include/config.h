@@ -70,8 +70,7 @@ constexpr float kJointKd = 1.0f;
 // - Zero pose is the raw driver reading of 0.
 // - Motors 1 and 2 share this same zero pose reference.
 // - Default pose is a common offset from zero pose.
-// - Standard pose is controlled relative to default pose.
-// Runtime control code consumes radians.
+// - Runtime control code consumes radians and uses zero pose as the logical reference.
 constexpr float kRadToDeg = 180.0f / PI;
 
 // Common default pose offset from zero pose.
@@ -81,18 +80,19 @@ constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
 
-// Default pose in controller coordinates (relative to default pose baseline).
-constexpr float kDefaultJointAngle = 0.0f;
+// Default pose angle relative to zero pose.
+// Changing this does not require retuning the other joint parameters.
+constexpr float kDefaultJointAngle = kDefaultFromZero;
 
-// Joint angle limits relative to the default pose.
-// TODO: Measure and calibrate these based on your mechanical range of motion.
-constexpr float kMinJointAngle = -18.401f * PI / 180.0f;  // Compressed/folded from default pose
-constexpr float kMaxJointAngle = 35.0f * PI / 180.0f;   // Extended from default pose
+// Joint angle limits relative to the zero pose.
+// These are fixed physical limits and do not depend on the default pose.
+constexpr float kMinJointAngle = -2.0f * PI / 180.0f; // Compressed/folded from default pose
+constexpr float kMaxJointAngle = 75.0f * PI / 180.0f; // Extended from default pose
 
-// Pre-jump compression and jump extension offsets relative to the standard pose.
-// Negative sneak offset shortens the legs; positive jump offset extends them.
-constexpr float kSneakAngleOffset = -20.0f * PI / 180.0f;   // A pressed target: +25 deg
-constexpr float kJumpAngleOffset = 20.0f * PI / 180.0f;   // A released target: -20 deg
+// Sneak/jump targets relative to the zero pose.
+// These are fixed physical targets and do not depend on the default pose.
+constexpr float kSneakJointAngle = -1.0f * PI / 180.0f;
+constexpr float kJumpJointAngle = 35.0f * PI / 180.0f;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;

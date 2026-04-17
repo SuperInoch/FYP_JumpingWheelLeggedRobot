@@ -443,7 +443,6 @@ bool initializeRobotPose(float legAngleRad) {
 
 // Converts requested leg angle into mirrored joint motor position targets.
 bool setMirroredLegJointAngles(float legAngleRad) {
-    const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float motorTurnsDelta = (legAngleRad / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float joint1TrimTurns = (AppConfig::Motor::kJoint1Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float joint2TrimTurns = (AppConfig::Motor::kJoint2Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
@@ -451,8 +450,8 @@ bool setMirroredLegJointAngles(float legAngleRad) {
     const float joint2Zero = jointZeroCaptured ? joint2ZeroTurns : 0.0f;
     // Positive logical joint angle is anti-clockwise on motor 1.
     // Motor 2 mirrors motor 1 in joint-angle space.
-    const float joint1Target = joint1Zero - defaultTurns + motorTurnsDelta + joint1TrimTurns;
-    const float joint2Target = joint2Zero + defaultTurns - motorTurnsDelta + joint2TrimTurns;
+    const float joint1Target = joint1Zero - motorTurnsDelta + joint1TrimTurns;
+    const float joint2Target = joint2Zero + motorTurnsDelta + joint2TrimTurns;
     
     commands[0].position = joint1Target;
     commands[0].velocity = 0.0f;
@@ -571,15 +570,14 @@ float getJointAngleRad(uint8_t nodeId) {
         return 0.0f;
     }
 
-    const float defaultTurns = (AppConfig::Motor::kDefaultFromZero / kTwoPi) * AppConfig::Motor::kJointGearRatio;
     const float turns = feedback[idx].pos;
     const float joint1Zero = jointZeroCaptured ? joint1ZeroTurns : 0.0f;
     const float joint2Zero = jointZeroCaptured ? joint2ZeroTurns : 0.0f;
     if (nodeId == AppConfig::Motor::kJointMotorLeftNodeId) {
-        return (joint1Zero - defaultTurns - turns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return (joint1Zero - turns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
     if (nodeId == AppConfig::Motor::kJointMotorRightNodeId) {
-        return (turns - joint2Zero - defaultTurns) * kTwoPi / AppConfig::Motor::kJointGearRatio;
+        return (turns - joint2Zero) * kTwoPi / AppConfig::Motor::kJointGearRatio;
     }
 
     return 0.0f;
@@ -676,9 +674,8 @@ bool lastTxSucceeded() {
 }
 
 // Safety: Check joint angles against physical limits.
-// Reads current motor positions, converts to logical joint angles (accounting for direction),
+// Reads current motor positions, converts to logical joint angles relative to the zero pose,
 // and verifies both are within [kMinJointAngle, kMaxJointAngle].
-// Motor 1 is clockwise (sign=-1), Motor 2 is anti-clockwise (sign=1).
 // If any limit is exceeded, instantly disables motors, prints critical error, and halts.
 bool checkJointLimits() {
     // Get current motor positions (in motor turns from encoder feedback)

@@ -46,12 +46,15 @@
 - Zero pose: motor driver reading near 0 turns.
 - Default pose is a common angle offset from the zero pose:
   - kDefaultFromZeroDeg
+- The controller uses zero pose as the logical joint-angle reference.
+- Changing the default pose does not require changing the other joint parameters.
 - Motor 2 mirrors motor 1 in joint-angle space (opposite sign).
 
 ## Safety Angle Limits
 - Limits are defined relative to the zero pose:
   - kMinJointAngleDeg
   - kMaxJointAngleDeg
+- These limits stay fixed even if the default pose changes.
 
 ## Controller Behavior
 - Press "A": the robot sneaks
@@ -60,6 +63,7 @@
 - Release "A": the robot jumps
   - motor 1: rotate clockwise to the jump position
   - motor 2: rotate anti-clockwise to the jump position
+- The sneak/jump targets are stored relative to the zero pose and stay independent of the default pose.
 - Left joystick: control the robot's moving direction
   - x-axis: turn left/right
   - y-axis: move forward / backward
