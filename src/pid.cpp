@@ -31,7 +31,7 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKd);
 
 constexpr float kJoystickToPidTargetScale = 1.0f / 15.0f;
-constexpr float kAngleOutputToWheelVelocityScale = 0.15f;
+constexpr float kAngleOutputToWheelVelocityScale = 0.2f;
 constexpr float kTurnOutputToWheelVelocityScale = 0.04f;
 
 // Jump state machine enumerator.
