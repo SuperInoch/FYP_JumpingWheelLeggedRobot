@@ -9,17 +9,17 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 70.0f;
+constexpr float kPitchPidKp = 200.0f;
 constexpr float kPitchPidKi = 3.0f;
-constexpr float kPitchPidKd = 10.0f;
+constexpr float kPitchPidKd = 30.0f;
 
-constexpr float kGyroPidKp = 4.0f;
+constexpr float kGyroPidKp = 40.0f;
 constexpr float kGyroPidKi = 3.0f;
 constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 15.0f;
+constexpr float kSpeedPidKp = 150.0f;
 constexpr float kSpeedPidKi = 0.05f;
-constexpr float kSpeedPidKd = 2.0f;
+constexpr float kSpeedPidKd = 20.0f;
 
 constexpr float kAnglePidOutputMin = -120.0f;
 constexpr float kAnglePidOutputMax = 120.0f;
@@ -87,7 +87,7 @@ constexpr float kDefaultJointAngle = kDefaultFromZero;
 // Joint angle limits relative to the zero pose.
 // These are fixed physical limits and do not depend on the default pose.
 constexpr float kMinJointAngle = -20.0f * PI / 180.0f; // Compressed/folded from default pose
-constexpr float kMaxJointAngle = 35.0f * PI / 180.0f; // Extended from default pose
+constexpr float kMaxJointAngle = 70.0f * PI / 180.0f; // Extended from default pose
 
 // Sneak/jump targets relative to the zero pose.
 // These are fixed physical targets and do not depend on the default pose.
