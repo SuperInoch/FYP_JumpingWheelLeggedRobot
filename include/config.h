@@ -62,8 +62,8 @@ constexpr unsigned char kWheelMotorRightNodeId = 0x04;  // motor 4
 
 constexpr float kJointGearRatio = 8.0f;
 // Joint hold gains during balancing.
-constexpr float kJointKp = 25.0f;
-constexpr float kJointKd = 1.0f;
+constexpr float kJointKp = 60.0f;
+constexpr float kJointKd = 3.0f;
 
 // Joint angle tuning is authored in degrees.
 // Motor 1 physical reference:
@@ -92,7 +92,7 @@ constexpr float kMaxJointAngle = 70.0f * PI / 180.0f; // Extended from default p
 // Sneak/jump targets relative to the zero pose.
 // These are fixed physical targets and do not depend on the default pose.
 constexpr float kSneakJointAngle = -1.0f * PI / 180.0f;
-constexpr float kJumpJointAngle = -55.0f * PI / 180.0f;
+constexpr float kJumpJointAngle = -60.0f * PI / 180.0f;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
