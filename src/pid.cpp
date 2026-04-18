@@ -30,8 +30,8 @@ PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKi,
                        AppConfig::PID::kSpeedPidKd);
 
-constexpr float kJoystickToPidTargetScale = 1.0f / 25.0f;
-constexpr float kAngleOutputToWheelVelocityScale = 0.08f;
+constexpr float kJoystickToPidTargetScale = 1.0f / 15.0f;
+constexpr float kAngleOutputToWheelVelocityScale = 0.15f;
 constexpr float kTurnOutputToWheelVelocityScale = 0.04f;
 
 // Jump state machine enumerator.
@@ -442,13 +442,15 @@ void process(const ImuData& imuData,
     const float turnVelocity = gDebug.gyroTerm * kTurnOutputToWheelVelocityScale;
     gDebug.balanceTorque = balanceVelocity;
 
+
     gDebug.leftTorqueCmd = clampValue(balanceVelocity - turnVelocity,
                     -AppConfig::XboxController::kMaxMotorVelocity,
                     AppConfig::XboxController::kMaxMotorVelocity);
     gDebug.rightTorqueCmd = clampValue(balanceVelocity + turnVelocity,
                      -AppConfig::XboxController::kMaxMotorVelocity,
                      AppConfig::XboxController::kMaxMotorVelocity);
-
+                
+                     
   // === Secondary joint angle control: A-button gated jump sequence ===
   // 1. Read current joint motor positions
   const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
