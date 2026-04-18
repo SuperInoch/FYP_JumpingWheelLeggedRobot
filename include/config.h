@@ -9,7 +9,7 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 90.0f;
+constexpr float kPitchPidKp = 70.0f;
 constexpr float kPitchPidKi = 3.0f;
 constexpr float kPitchPidKd = 10.0f;
 
@@ -17,7 +17,7 @@ constexpr float kGyroPidKp = 4.0f;
 constexpr float kGyroPidKi = 3.0f;
 constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 3.0f;
+constexpr float kSpeedPidKp = 15.0f;
 constexpr float kSpeedPidKi = 0.05f;
 constexpr float kSpeedPidKd = 2.0f;
 
@@ -75,7 +75,7 @@ constexpr float kRadToDeg = 180.0f / PI;
 
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
-constexpr float kDefaultFromZero = -17.0f * PI / 180.0f;
+constexpr float kDefaultFromZero = -10.0f * PI / 180.0f;
 constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
@@ -86,13 +86,13 @@ constexpr float kDefaultJointAngle = kDefaultFromZero;
 
 // Joint angle limits relative to the zero pose.
 // These are fixed physical limits and do not depend on the default pose.
-constexpr float kMinJointAngle = -30.0f * PI / 180.0f; // Compressed/folded from default pose
-constexpr float kMaxJointAngle = 70.0f * PI / 180.0f; // Extended from default pose
+constexpr float kMinJointAngle = -20.0f * PI / 180.0f; // Compressed/folded from default pose
+constexpr float kMaxJointAngle = 35.0f * PI / 180.0f; // Extended from default pose
 
 // Sneak/jump targets relative to the zero pose.
 // These are fixed physical targets and do not depend on the default pose.
 constexpr float kSneakJointAngle = -1.0f * PI / 180.0f;
-constexpr float kJumpJointAngle = -60.0f * PI / 180.0f;
+constexpr float kJumpJointAngle = -55.0f * PI / 180.0f;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
