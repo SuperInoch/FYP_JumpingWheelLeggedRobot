@@ -9,24 +9,24 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 110.0f;
-constexpr float kPitchPidKi = 0.8f;
-constexpr float kPitchPidKd = 4.5f;
+constexpr float kPitchPidKp = 90.0f;
+constexpr float kPitchPidKi = 3.0f;
+constexpr float kPitchPidKd = 10.0f;
 
-constexpr float kGyroPidKp = 8.0f;
-constexpr float kGyroPidKi = 0.1f;
-constexpr float kGyroPidKd = 2.0f;
+constexpr float kGyroPidKp = 4.0f;
+constexpr float kGyroPidKi = 3.0f;
+constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 15.0f;
-constexpr float kSpeedPidKi = 0.12f;
+constexpr float kSpeedPidKp = 3.0f;
+constexpr float kSpeedPidKi = 0.05f;
 constexpr float kSpeedPidKd = 2.0f;
 
-constexpr float kAnglePidOutputMin = -100.0f;
-constexpr float kAnglePidOutputMax = 100.0f;
-constexpr float kSpeedPidOutputMin = -20.0f;
-constexpr float kSpeedPidOutputMax = 20.0f;
-constexpr float kTurnPidOutputMin = -50.0f;
-constexpr float kTurnPidOutputMax = 50.0f;
+constexpr float kAnglePidOutputMin = -120.0f;
+constexpr float kAnglePidOutputMax = 120.0f;
+constexpr float kSpeedPidOutputMin = -30.0f;
+constexpr float kSpeedPidOutputMax = 30.0f;
+constexpr float kTurnPidOutputMin = -60.0f;
+constexpr float kTurnPidOutputMax = 60.0f;
 constexpr float kStickTargetMax = 127.0f;
 
 constexpr float kComputeDtResetSec = 0.001f;
@@ -62,8 +62,8 @@ constexpr unsigned char kWheelMotorRightNodeId = 0x04;  // motor 4
 
 constexpr float kJointGearRatio = 8.0f;
 // Joint hold gains during balancing.
-constexpr float kJointKp = 60.0f;
-constexpr float kJointKd = 3.0f;
+constexpr float kJointKp = 20.0f;
+constexpr float kJointKd = 0.05f;
 
 // Joint angle tuning is authored in degrees.
 // Motor 1 physical reference:
@@ -75,7 +75,7 @@ constexpr float kRadToDeg = 180.0f / PI;
 
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
-constexpr float kDefaultFromZero = -15.0f * PI / 180.0f;
+constexpr float kDefaultFromZero = -17.0f * PI / 180.0f;
 constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
