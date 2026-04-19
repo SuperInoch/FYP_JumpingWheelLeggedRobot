@@ -9,16 +9,16 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 90.0f;
-constexpr float kPitchPidKi = 2.0f;
-constexpr float kPitchPidKd = 8.0f;
+constexpr float kPitchPidKp = 190.0f;
+constexpr float kPitchPidKi = 0.01f;
+constexpr float kPitchPidKd = 15.0f;
 
 constexpr float kGyroPidKp = 6.0f;
-constexpr float kGyroPidKi = 3.0f;
-constexpr float kGyroPidKd = 0.5f;
+constexpr float kGyroPidKi = 0.0f;
+constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 12.0f;
-constexpr float kSpeedPidKi = 0.08f;
+constexpr float kSpeedPidKp = 0.4f;
+constexpr float kSpeedPidKi = 0.01f;
 constexpr float kSpeedPidKd = 2.0f;
 
 constexpr float kAnglePidOutputMin = -120.0f;
@@ -38,7 +38,7 @@ constexpr float kDefaultOutputMax = 5.0f;
 namespace Behavior {
 // Serial debug print interval.
 constexpr unsigned long kMonitorPrintIntervalMs = 100;
-constexpr unsigned long kMainLoopDelayMs = 3;
+constexpr unsigned long kMainLoopDelayMs = 1.5;
 // If true, setup waits for Xbox packets before enabling motors.
 constexpr bool kRequireXboxSignalOnStartup = true;
 // If true, setup requires both joint motors to be near zero pose before startup continues.
@@ -103,9 +103,9 @@ constexpr float kWheelRightSign = -1.0f;
 
 namespace IMU {
 constexpr unsigned long kI2cClockHz = 400000UL;
-constexpr float kAccCoef = 0.02f;
-constexpr float kGyroCoef = 0.98f;
-constexpr float kGyroYLowPassAlpha = 0.005f;
+constexpr float kAccCoef = 0.1f;
+constexpr float kGyroCoef = 0.9f;
+constexpr float kGyroYLowPassAlpha = 0.05f;
 constexpr float kGyroZDeadband = 1.0f;
 constexpr float kRemoteBalanceOffsetDeg = 0.0f;
 
