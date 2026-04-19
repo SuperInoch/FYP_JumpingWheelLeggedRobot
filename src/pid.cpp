@@ -242,7 +242,7 @@ void applySafeIdle() {
 
 // Constructs a PID object with default limits and zeroed state.
 PIDController::PIDController(float kp, float ki, float kd)
-    : kp_(kp), ki_(ki), kd_(kd), integral_(0.0f), previousError_(0.0f), previousOutput_(0.0f),
+  : kp_(kp), ki_(ki), kd_(kd), integral_(0.0f), previousError_(0.0f), previousMeasurement_(0.0f), previousOutput_(0.0f),
       minOutput_(AppConfig::PID::kDefaultOutputMin), maxOutput_(AppConfig::PID::kDefaultOutputMax),
       outputRampPerSecond_(0.0f) {}
 
@@ -268,6 +268,7 @@ void PIDController::setOutputRamp(float rampPerSecond) {
 void PIDController::reset() {
   integral_ = 0.0f;
   previousError_ = 0.0f;
+  previousMeasurement_ = 0.0f;
   previousOutput_ = 0.0f;
 }
 
@@ -281,17 +282,26 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
   }
 
   const float error = setpoint - measurement;
+  const float derivativeMeasurement = (measurement - previousMeasurement_) / dtSeconds;
+  const float pTerm = kp_ * error;
+  const float dTerm = -kd_ * derivativeMeasurement;
 
-  // Match PID.c style: accumulate pure error, then multiply by Ki.
+  // Anti-windup: clamp integrator to what output headroom allows this cycle.
   if (ki_ != 0.0f) {
     integral_ += error * dtSeconds;
+
+    const float integralMin = (minOutput_ - pTerm - dTerm) / ki_;
+    const float integralMax = (maxOutput_ - pTerm - dTerm) / ki_;
+    if (integralMin < integralMax) {
+      integral_ = clampValue(integral_, integralMin, integralMax);
+    } else {
+      integral_ = clampValue(integral_, integralMax, integralMin);
+    }
   } else {
     integral_ = 0.0f;
   }
 
-  const float derivative = (error - previousError_) / dtSeconds;
-
-  float output = kp_ * error + ki_ * integral_ + kd_ * derivative;
+  float output = pTerm + ki_ * integral_ + dTerm;
   output = clampValue(output, minOutput_, maxOutput_);
 
   // Optional output slew-rate limiting from the lesson PID style.
@@ -305,6 +315,7 @@ float PIDController::compute(float setpoint, float measurement, float dtSeconds)
   }
 
   previousError_ = error;
+  previousMeasurement_ = measurement;
   previousOutput_ = output;
   return output;
 }
@@ -386,6 +397,7 @@ void process(const ImuData& imuData,
   const bool menuPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonMenuBit);
   const bool viewPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonViewBit);
   const bool rbPressed = isPressed(xboxData.buttons, AppConfig::XboxController::kButtonRbBit);
+  const bool driveEnabledBeforeButtons = gDebug.driveEnabled;
 
   if (menuPressed && !prevMenuPressed) {
     gDebug.driveEnabled = true;
@@ -395,6 +407,11 @@ void process(const ImuData& imuData,
   }
   prevMenuPressed = menuPressed;
   prevViewPressed = viewPressed;
+
+  // Avoid stale integrator/derivative state causing a kick when drive is re-enabled.
+  if (!driveEnabledBeforeButtons && gDebug.driveEnabled) {
+    resetPidStates();
+  }
 
   if (!gDebug.driveEnabled) {
     const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
@@ -443,12 +460,15 @@ void process(const ImuData& imuData,
     gDebug.balanceTorque = balanceVelocity;
 
 
+
     gDebug.leftTorqueCmd = clampValue(balanceVelocity - turnVelocity,
                     -AppConfig::XboxController::kMaxMotorVelocity,
                     AppConfig::XboxController::kMaxMotorVelocity);
     gDebug.rightTorqueCmd = clampValue(balanceVelocity + turnVelocity,
                      -AppConfig::XboxController::kMaxMotorVelocity,
                      AppConfig::XboxController::kMaxMotorVelocity);
+                
+                     
                 
                      
   // === Secondary joint angle control: A-button gated jump sequence ===

@@ -32,6 +32,7 @@ private:
 
   float integral_;
   float previousError_;
+  float previousMeasurement_;
   float previousOutput_;
   float minOutput_;
   float maxOutput_;
