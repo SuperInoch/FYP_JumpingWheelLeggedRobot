@@ -9,16 +9,16 @@ constexpr float kOutputRampPerSecond = 40.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 90.0f;
-constexpr float kPitchPidKi = 2.0f;
-constexpr float kPitchPidKd = 8.0f;
+constexpr float kPitchPidKp = 110.0f;
+constexpr float kPitchPidKi = 0.8f;
+constexpr float kPitchPidKd = 4.5f;
 
-constexpr float kGyroPidKp = 6.0f;
-constexpr float kGyroPidKi = 3.0f;
-constexpr float kGyroPidKd = 0.5f;
+constexpr float kGyroPidKp = 8.0f;
+constexpr float kGyroPidKi = 0.1f;
+constexpr float kGyroPidKd = 2.0f;
 
-constexpr float kSpeedPidKp = 12.0f;
-constexpr float kSpeedPidKi = 0.08f;
+constexpr float kSpeedPidKp = 15.0f;
+constexpr float kSpeedPidKi = 0.12f;
 constexpr float kSpeedPidKd = 2.0f;
 
 constexpr float kAnglePidOutputMin = -100.0f;
@@ -75,7 +75,7 @@ constexpr float kRadToDeg = 180.0f / PI;
 
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
-constexpr float kDefaultFromZero = -10.0f * PI / 180.0f;
+constexpr float kDefaultFromZero = -15.0f * PI / 180.0f;
 constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
@@ -97,8 +97,8 @@ constexpr float kJumpJointAngle = -60.0f * PI / 180.0f;
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
 // Back-to-back wheel installation: motor 3 needs inverted command sign.
-constexpr float kWheelLeftSign = -1.0f;
-constexpr float kWheelRightSign = 1.0f;
+constexpr float kWheelLeftSign  =  1.0f;
+constexpr float kWheelRightSign = -1.0f;
 } // namespace Motor
 
 namespace IMU {
