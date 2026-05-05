@@ -470,6 +470,46 @@ bool setMirroredLegJointAngles(float legAngleRad) {
     return true;
 }
 
+// Converts requested leg angle into mirrored joint targets with velocity feedforward.
+bool setMirroredLegJointAnglesWithVelocity(float legAngleRad, float motorVelocityTurnsPerSec) {
+    const float motorTurnsDelta = (legAngleRad / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint1TrimTurns = (AppConfig::Motor::kJoint1Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint2TrimTurns = (AppConfig::Motor::kJoint2Trim / kTwoPi) * AppConfig::Motor::kJointGearRatio;
+    const float joint1Zero = jointZeroCaptured ? joint1ZeroTurns : 0.0f;
+    const float joint2Zero = jointZeroCaptured ? joint2ZeroTurns : 0.0f;
+    const float joint1Target = joint1Zero - motorTurnsDelta + joint1TrimTurns;
+    const float joint2Target = joint2Zero + motorTurnsDelta + joint2TrimTurns;
+
+    float joint1Vel = 0.0f;
+    float joint2Vel = 0.0f;
+    if (motorVelocityTurnsPerSec > 0.0f) {
+        const int joint1Idx = findMotorIndexByNodeId(AppConfig::Motor::kJointMotorLeftNodeId);
+        const int joint2Idx = findMotorIndexByNodeId(AppConfig::Motor::kJointMotorRightNodeId);
+        const float joint1Pos = (joint1Idx >= 0 && feedback[joint1Idx].valid) ? feedback[joint1Idx].pos : joint1Target;
+        const float joint2Pos = (joint2Idx >= 0 && feedback[joint2Idx].valid) ? feedback[joint2Idx].pos : joint2Target;
+        const float delta1 = joint1Target - joint1Pos;
+        const float delta2 = joint2Target - joint2Pos;
+        joint1Vel = (delta1 >= 0.0f) ? motorVelocityTurnsPerSec : -motorVelocityTurnsPerSec;
+        joint2Vel = (delta2 >= 0.0f) ? motorVelocityTurnsPerSec : -motorVelocityTurnsPerSec;
+    }
+
+    commands[0].position = joint1Target;
+    commands[0].velocity = joint1Vel;
+    commands[0].kp = AppConfig::Motor::kJointKp;
+    commands[0].kd = AppConfig::Motor::kJointKd;
+    commands[0].torque = 0.0f;
+    commands[0].velocityMode = false;
+
+    commands[1].position = joint2Target;
+    commands[1].velocity = joint2Vel;
+    commands[1].kp = AppConfig::Motor::kJointKp;
+    commands[1].kd = AppConfig::Motor::kJointKd;
+    commands[1].torque = 0.0f;
+    commands[1].velocityMode = false;
+
+    return true;
+}
+
 // Applies left/right wheel torque commands with clamp and motor sign mapping.
 bool setWheelTorques(float leftTorque, float rightTorque) {
     const float left = clampValue(leftTorque, -AppConfig::Motor::kWheelTorqueLimit, AppConfig::Motor::kWheelTorqueLimit) *

@@ -17,6 +17,9 @@ bool initializeRobotPose(float legAngleRad);
 // Input: leg angle in radians; function maps to mirrored left/right joints.
 // Output: true when joint targets were updated.
 bool setMirroredLegJointAngles(float legAngleRad);
+// Input: leg angle in radians plus motor velocity feedforward in turns/sec.
+// Output: true when joint targets were updated.
+bool setMirroredLegJointAnglesWithVelocity(float legAngleRad, float motorVelocityTurnsPerSec);
 // Input: left/right wheel torques before sign correction and clamping.
 // Output: true when wheel torque targets were updated.
 bool setWheelTorques(float leftTorque, float rightTorque);

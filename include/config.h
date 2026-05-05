@@ -5,21 +5,29 @@
 
 namespace AppConfig {
 namespace PID {
-constexpr float kOutputRampPerSecond = 40.0f;
+constexpr float kOutputRampPerSecond = 80.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 190.0f;
-constexpr float kPitchPidKi = 0.01f;
-constexpr float kPitchPidKd = 15.0f;
+constexpr float kPitchPidKp = 100.0f;
+constexpr float kPitchPidKi = 0.0f;
+constexpr float kPitchPidKd = 30.0f;
 
-constexpr float kGyroPidKp = 6.0f;
+constexpr float kPitchRatePidKp = 0.06f;
+constexpr float kPitchRatePidKi = 0.0f;
+constexpr float kPitchRatePidKd = 0.0f;
+
+constexpr float kGyroPidKp = 8.0f;
 constexpr float kGyroPidKi = 0.0f;
 constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 0.4f;
-constexpr float kSpeedPidKi = 0.01f;
+constexpr float kSpeedPidKp = 2.0f;
+constexpr float kSpeedPidKi = 0.0f;
 constexpr float kSpeedPidKd = 2.0f;
+
+constexpr float kDistancePidKp = 0.5f;
+constexpr float kDistancePidKi = 0.0f;
+constexpr float kDistancePidKd = 0.0f;
 
 constexpr float kAnglePidOutputMin = -120.0f;
 constexpr float kAnglePidOutputMax = 120.0f;
@@ -28,6 +36,12 @@ constexpr float kSpeedPidOutputMax = 30.0f;
 constexpr float kTurnPidOutputMin = -60.0f;
 constexpr float kTurnPidOutputMax = 60.0f;
 constexpr float kStickTargetMax = 127.0f;
+// Small deadbands to prevent jitter-induced wheel drift.
+constexpr float kPitchErrorDeadbandDeg = 0.75f;
+constexpr float kWheelSpeedDeadband = 0.05f; // turns/second
+// LQR-style stop detection thresholds.
+constexpr float kWheelStopSpeedThreshold = 0.5f;
+constexpr float kWheelFastSpeedThreshold = 15.0f;
 
 constexpr float kComputeDtResetSec = 0.001f;
 constexpr float kComputeDtMaxSec = 0.5f;
@@ -63,7 +77,7 @@ constexpr unsigned char kWheelMotorRightNodeId = 0x04;  // motor 4
 constexpr float kJointGearRatio = 8.0f;
 // Joint hold gains during balancing.
 constexpr float kJointKp = 60.0f;
-constexpr float kJointKd = 3.0f;
+constexpr float kJointKd = 4.5f;
 
 // Joint angle tuning is authored in degrees.
 // Motor 1 physical reference:
@@ -93,6 +107,13 @@ constexpr float kMaxJointAngle = 70.0f * PI / 180.0f; // Extended from default p
 // These are fixed physical targets and do not depend on the default pose.
 constexpr float kSneakJointAngle = -1.0f * PI / 180.0f;
 constexpr float kJumpJointAngle = -60.0f * PI / 180.0f;
+// Joint motor velocity feedforward during jump motion (joint output RPM).
+constexpr float kJumpJointVelocityRpm = 180.0f;
+constexpr float kJumpJointVelocityTurnsPerSec = (kJumpJointVelocityRpm / 60.0f) * kJointGearRatio;
+// Stop jump velocity feedforward once close to target.
+constexpr float kJumpVelocityStopErrorDeg = 10.0f;
+// Duration to apply jump velocity feedforward at the start of jump extension.
+constexpr unsigned long kJumpVelocityKickMs = 120UL;
 
 // Wheel balance output settings.
 constexpr float kWheelTorqueLimit = 5.0f;
