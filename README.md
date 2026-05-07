@@ -57,16 +57,24 @@
 - These limits stay fixed even if the default pose changes.
 
 ## Controller Behavior
-- Press "A": the robot sneaks
-  - motor 1: rotate anti-clockwise to the sneak position
-  - motor 2: rotate clockwise to the sneak position
-- Release "A": the robot jumps
-  - motor 1: rotate clockwise to the jump position
-  - motor 2: rotate anti-clockwise to the jump position
+- Menu button: enable drive
+- View button: disable drive (wheels idle, legs stay in pose)
+- A button: jump sequence
+  - Hold A: crouch (sneak target)
+  - Release A: launch (jump target), then recover to default pose
+  - Short cooldown prevents accidental retrigger
 - The sneak/jump targets are stored relative to the zero pose and stay independent of the default pose.
-- Left joystick: control the robot's moving direction
-  - x-axis: turn left/right
-  - y-axis: move forward / backward
+- Left joystick: control robot motion
+  - X-axis: turn left/right
+  - Y-axis: move forward/backward (speed target)
+- RB: turbo scale for faster motion
+
+## Control (PID + Mixing)
+- Balance target is a fixed pitch setpoint (kPitchSetpointDeg).
+- Speed loop: left-stick Y -> speed target -> speed PID -> desired pitch offset.
+- Balance loop: pitch + pitch-rate damping -> wheel velocity command.
+- Turn loop: left-stick X -> turn target -> turn PID -> differential wheel velocity.
+- Forward authority is reduced when tilt error grows to prevent runaway.
 
 ## Hardware Checking
 1. Controller Checking
