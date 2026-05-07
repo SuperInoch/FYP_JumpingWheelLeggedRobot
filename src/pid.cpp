@@ -18,7 +18,6 @@ static float clampValue(float value, float minValue, float maxValue) {
 
 namespace {
 
-constexpr float kTwoPi = 2.0f * PI;
 
 PIDController pitchPid(AppConfig::PID::kPitchPidKp,
                        AppConfig::PID::kPitchPidKi,
@@ -29,23 +28,17 @@ PIDController pitchRatePid(AppConfig::PID::kPitchRatePidKp,
 PIDController gyroPid(AppConfig::PID::kGyroPidKp,
                       AppConfig::PID::kGyroPidKi,
                       AppConfig::PID::kGyroPidKd);
-PIDController distancePid(AppConfig::PID::kDistancePidKp,
-                          AppConfig::PID::kDistancePidKi,
-                          AppConfig::PID::kDistancePidKd);
 PIDController speedPid(AppConfig::PID::kSpeedPidKp,
                        AppConfig::PID::kSpeedPidKi,
                        AppConfig::PID::kSpeedPidKd);
 
-constexpr float kJoystickToPidTargetScale = 1.0f / 15.0f;
-constexpr float kAngleOutputToWheelVelocityScale = 0.25f;
-constexpr float kTurnOutputToWheelVelocityScale = 0.05f;
-
 // Jump state machine enumerator.
 enum JumpState {
-  JUMP_IDLE,       // Legs at standard height, waiting for A button.
-  JUMP_SNEAKING,   // Legs compressing; wait for A button release.
-  JUMP_JUMPING,    // Legs explosively extending; detect completion.
-  JUMP_AIRBORNE    // Legs retracting; wait for landing detection.
+  JUMP_IDLE,
+  JUMP_CROUCH,
+  JUMP_LAUNCH,
+  JUMP_RECOVER,
+  JUMP_COOLDOWN
 };
 
 // Jump sequence state machine variables
@@ -56,9 +49,9 @@ bool rawAPressedPrev = false;            // Last raw A reading for debounce.
 bool debouncedAPressed = false;          // Debounced A state used by jump state machine.
 unsigned long aDebounceStartTimeMs = 0;  // Raw-edge timestamp for debounce window.
 
-// Hold jump extension for 0.1 second after A release, then recover to default.
-constexpr unsigned long kJumpHoldMs = 500;
-constexpr unsigned long kRecoverToIdleMs = 20;
+constexpr unsigned long kJumpHoldMs = 220;
+constexpr unsigned long kRecoverToIdleMs = 180;
+constexpr unsigned long kJumpCooldownMs = 180;
 constexpr unsigned long kAButtonDebounceMs = 35;
 
 // Forward command protection: reduce forward/back authority when tilt error grows.
@@ -68,21 +61,11 @@ constexpr float kForwardProtectMinScale = 0.15f;
 
 ControlDebugState gDebug = {};
 
-float forwardCmdFiltered = 0.0f;
 unsigned long lastControlUs = 0;
-float distanceZeroTurns = 0.0f;
-bool distanceZeroInitialized = false;
-bool moveStopFlag = false;
-float prevJoyX = 0.0f;
-float prevJoyY = 0.0f;
 
 bool prevMenuPressed = false;
 bool prevViewPressed = false;
 
-struct WheelSpeedTargets {
-  float leftVelocity;
-  float rightVelocity;
-};
 
 // Returns true if the requested button bit is currently set.
 bool isPressed(uint8_t buttons, uint8_t bit) {
@@ -132,111 +115,69 @@ float computeForwardAuthority(float pitchErrorDegAbs) {
   return 1.0f - t * (1.0f - kForwardProtectMinScale);
 }
 
-// Maps left joystick (x,y) to differential wheel velocity targets in turns/second.
-WheelSpeedTargets mapLeftStickToWheelSpeeds(float joyX,
-                                            float joyY,
-                                            float turboScale,
-                                            float forwardAuthority) {
-  const float forwardVelocity = joyY * AppConfig::XboxController::kForwardScale *
-                                AppConfig::XboxController::kMaxMotorVelocity * turboScale *
-                                clampValue(forwardAuthority, 0.0f, 1.0f);
-  const float turnVelocity = joyX * AppConfig::XboxController::kTurnScale *
-                             AppConfig::XboxController::kMaxTurningVelocity;
-
-  // Positive turn command increases left-wheel target and decreases right-wheel target.
-  float leftVelocity = forwardVelocity + turnVelocity;
-  float rightVelocity = forwardVelocity - turnVelocity;
-
-  const float leftAbs = fabsf(leftVelocity);
-  const float rightAbs = fabsf(rightVelocity);
-  const float peakAbs = (leftAbs > rightAbs) ? leftAbs : rightAbs;
-  if (peakAbs > AppConfig::XboxController::kMaxMotorVelocity && peakAbs > 0.0f) {
-    const float scale = AppConfig::XboxController::kMaxMotorVelocity / peakAbs;
-    leftVelocity *= scale;
-    rightVelocity *= scale;
-  }
-
-  return {leftVelocity, rightVelocity};
-}
 
 // Clears all PID internal memory and command filters.
 void resetPidStates() {
   pitchPid.reset();
   pitchRatePid.reset();
   gyroPid.reset();
-  distancePid.reset();
   speedPid.reset();
-  forwardCmdFiltered = 0.0f;
-  distanceZeroInitialized = false;
-  moveStopFlag = false;
-  prevJoyX = 0.0f;
-  prevJoyY = 0.0f;
 }
 
-// Jump state machine: orchestrates sneak -> jump -> airborne -> landing sequence.
-// Returns the target joint angle relative to the zero pose.
-float updateJumpStateMachine(bool aPressed, float currentMotorPos, const ImuData& imuData, unsigned long nowMs) {
-  (void)currentMotorPos;
-  (void)imuData;
-
+// Jump state machine: crouch while held, launch on release, recover with cooldown.
+float updateJumpStateMachine(bool aPressed, unsigned long nowMs) {
   const bool aJustPressed = aPressed && !prevAPressed;
   const bool aJustReleased = !aPressed && prevAPressed;
   prevAPressed = aPressed;
 
-  // State transition logic
   switch (jumpState) {
     case JUMP_IDLE:
-      // Idle: track standard position; A press triggers sneak.
       if (aJustPressed) {
-        jumpState = JUMP_SNEAKING;
+        jumpState = JUMP_CROUCH;
         jumpStateStartTimeMs = nowMs;
       }
       break;
 
-    case JUMP_SNEAKING:
-      // Sneaking: compress legs; A release triggers jump.
+    case JUMP_CROUCH:
       if (aJustReleased) {
-        jumpState = JUMP_JUMPING;
+        jumpState = JUMP_LAUNCH;
         jumpStateStartTimeMs = nowMs;
       }
       break;
 
-    case JUMP_JUMPING:
-      // Jumping: hold jump target for a fixed window after release.
+    case JUMP_LAUNCH:
       if ((nowMs - jumpStateStartTimeMs) >= kJumpHoldMs) {
-        jumpState = JUMP_AIRBORNE;
+        jumpState = JUMP_RECOVER;
         jumpStateStartTimeMs = nowMs;
       }
       break;
 
-    case JUMP_AIRBORNE:
-      // Recovery: settle back to the default zero-referenced pose then return to idle.
+    case JUMP_RECOVER:
       if ((nowMs - jumpStateStartTimeMs) >= kRecoverToIdleMs) {
+        jumpState = JUMP_COOLDOWN;
+        jumpStateStartTimeMs = nowMs;
+      }
+      break;
+
+    case JUMP_COOLDOWN:
+      if ((nowMs - jumpStateStartTimeMs) >= kJumpCooldownMs) {
         jumpState = JUMP_IDLE;
         jumpStateStartTimeMs = nowMs;
       }
       break;
   }
 
-  // Output target joint angle based on current state.
-  float targetAngle = AppConfig::Motor::kDefaultJointAngle;
-  
   switch (jumpState) {
+    case JUMP_CROUCH:
+      return AppConfig::Motor::kSneakJointAngle;
+    case JUMP_LAUNCH:
+      return AppConfig::Motor::kJumpJointAngle;
+    case JUMP_RECOVER:
+    case JUMP_COOLDOWN:
     case JUMP_IDLE:
-      targetAngle = AppConfig::Motor::kDefaultJointAngle;
-      break;
-    case JUMP_SNEAKING:
-      targetAngle = AppConfig::Motor::kSneakJointAngle;
-      break;
-    case JUMP_JUMPING:
-      targetAngle = AppConfig::Motor::kJumpJointAngle;
-      break;
-    case JUMP_AIRBORNE:
-      targetAngle = AppConfig::Motor::kDefaultJointAngle;
-      break;
+    default:
+      return AppConfig::Motor::kDefaultJointAngle;
   }
-
-  return targetAngle;
 }
 
 // Commands a safe neutral pose and resets control outputs.
@@ -344,13 +285,11 @@ void begin() {
   pitchPid.setOutputLimits(AppConfig::PID::kAnglePidOutputMin, AppConfig::PID::kAnglePidOutputMax);
   pitchRatePid.setOutputLimits(AppConfig::PID::kAnglePidOutputMin, AppConfig::PID::kAnglePidOutputMax);
   gyroPid.setOutputLimits(AppConfig::PID::kTurnPidOutputMin, AppConfig::PID::kTurnPidOutputMax);
-  distancePid.setOutputLimits(AppConfig::PID::kSpeedPidOutputMin, AppConfig::PID::kSpeedPidOutputMax);
   speedPid.setOutputLimits(AppConfig::PID::kSpeedPidOutputMin, AppConfig::PID::kSpeedPidOutputMax);
 
   pitchPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
   pitchRatePid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
   gyroPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
-  distancePid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
   speedPid.setOutputRamp(AppConfig::PID::kOutputRampPerSecond);
 
   gDebug.driveEnabled = AppConfig::XboxController::kDriveEnabledOnBoot;
@@ -435,14 +374,13 @@ void process(const ImuData& imuData,
   }
 
   if (!gDebug.driveEnabled) {
-    const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-    const float targetJointAngle = updateJumpStateMachine(aPressed, motor1Pos, imuData, nowMs);
+    const float targetJointAngle = updateJumpStateMachine(aPressed, nowMs);
     gDebug.legAngleCmd = clampValue(targetJointAngle,
                                     AppConfig::Motor::kMinJointAngle,
                                     AppConfig::Motor::kMaxJointAngle);
 
     float jumpVelocity = 0.0f;
-    if (jumpState == JUMP_JUMPING && (nowMs - jumpStateStartTimeMs) <= AppConfig::Motor::kJumpVelocityKickMs) {
+    if (jumpState == JUMP_LAUNCH && (nowMs - jumpStateStartTimeMs) <= AppConfig::Motor::kJumpVelocityKickMs) {
       jumpVelocity = AppConfig::Motor::kJumpJointVelocityTurnsPerSec;
       const float jointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
       const float angleErrorRad = fabsf(gDebug.legAngleCmd - jointAngle);
@@ -469,89 +407,61 @@ void process(const ImuData& imuData,
 
   joyY = -joyY;
 
-    const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
+  const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
 
-    const float speedTarget = joyY * AppConfig::PID::kStickTargetMax * turbo * kJoystickToPidTargetScale;
-    const float turnTarget = joyX * AppConfig::PID::kStickTargetMax * kJoystickToPidTargetScale;
+  const float pitchErrorAbs = fabsf(imuData.pitchDeg - AppConfig::PID::kPitchSetpointDeg);
+  const float forwardAuthority = computeForwardAuthority(pitchErrorAbs);
 
-    const float wheelLeftPosition =
-      MotorControl::getMotorPosition(AppConfig::Motor::kWheelMotorLeftNodeId) * AppConfig::Motor::kWheelLeftSign;
-    const float wheelRightPosition =
-      MotorControl::getMotorPosition(AppConfig::Motor::kWheelMotorRightNodeId) * AppConfig::Motor::kWheelRightSign;
-    const float wheelLeftVelocity =
+  const float speedTarget = joyY * AppConfig::XboxController::kMaxMotorVelocity * turbo *
+                            AppConfig::XboxController::kForwardScale * forwardAuthority;
+  const float turnTarget = joyX * AppConfig::XboxController::kMaxTurningVelocity *
+                           AppConfig::XboxController::kTurnScale;
+
+  const float wheelLeftVelocity =
       MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorLeftNodeId) * AppConfig::Motor::kWheelLeftSign;
-    const float wheelRightVelocity =
+  const float wheelRightVelocity =
       MotorControl::getMotorVelocity(AppConfig::Motor::kWheelMotorRightNodeId) * AppConfig::Motor::kWheelRightSign;
 
-    float wheelSpeedAvg = 0.5f * (wheelLeftVelocity + wheelRightVelocity);
-    const float wheelTurnRate = 0.5f * (wheelRightVelocity - wheelLeftVelocity);
-    const float wheelDistanceAvg = 0.5f * (wheelLeftPosition + wheelRightPosition);
+  float wheelSpeedAvg = 0.5f * (wheelLeftVelocity + wheelRightVelocity);
+  const float wheelTurnRate = 0.5f * (wheelRightVelocity - wheelLeftVelocity);
 
-    if (!distanceZeroInitialized) {
-      distanceZeroTurns = wheelDistanceAvg;
-      distanceZeroInitialized = true;
-    }
+  if (fabsf(wheelSpeedAvg) < AppConfig::PID::kWheelSpeedDeadband) {
+    wheelSpeedAvg = 0.0f;
+  }
 
-    if (joyY != 0.0f) {
-      distanceZeroTurns = wheelDistanceAvg;
-      distancePid.reset();
-      moveStopFlag = false;
-    }
+  const float speedPitchOffset = speedPid.compute(speedTarget, wheelSpeedAvg, dt);
+  float desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg + speedPitchOffset;
+  desiredPitchDeg = clampValue(desiredPitchDeg, -AppConfig::PID::kMaxLeanDeg, AppConfig::PID::kMaxLeanDeg);
 
-    if ((prevJoyX != 0.0f && joyX == 0.0f) || (prevJoyY != 0.0f && joyY == 0.0f)) {
-      moveStopFlag = true;
-    }
+  const float angleControl = pitchPid.compute(desiredPitchDeg, imuData.pitchDeg, dt);
+  const float rateControl = pitchRatePid.compute(0.0f, imuData.yawRateDegPerSec, dt);
+  const float turnControl = gyroPid.compute(turnTarget, wheelTurnRate, dt);
 
-    if (moveStopFlag && fabsf(wheelSpeedAvg) < AppConfig::PID::kWheelStopSpeedThreshold) {
-      distanceZeroTurns = wheelDistanceAvg;
-      moveStopFlag = false;
-    }
+  gDebug.pitchTerm = angleControl;
+  gDebug.speedTerm = speedPitchOffset;
+  gDebug.desiredPitchDeg = desiredPitchDeg;
+  gDebug.gyroTerm = turnControl;
 
-    if (fabsf(wheelSpeedAvg) > AppConfig::PID::kWheelFastSpeedThreshold) {
-      distanceZeroTurns = wheelDistanceAvg;
-    }
+  const float balanceOutput = angleControl + rateControl;
+  gDebug.balanceTorque = balanceOutput;
 
-    prevJoyX = joyX;
-    prevJoyY = joyY;
+  float leftCmd = balanceOutput - turnControl;
+  float rightCmd = balanceOutput + turnControl;
 
-    if (fabsf(wheelSpeedAvg) < AppConfig::PID::kWheelSpeedDeadband) {
-      wheelSpeedAvg = 0.0f;
-    }
-
-    const float angleControl = pitchPid.compute(AppConfig::PID::kPitchSetpointDeg, imuData.pitchDeg, dt);
-    const float gyroControl = pitchRatePid.compute(0.0f, imuData.yawRateDegPerSec, dt);
-    const float distanceControl = distancePid.compute(0.0f, wheelDistanceAvg - distanceZeroTurns, dt);
-    const float speedControl = speedPid.compute(speedTarget, wheelSpeedAvg, dt);
-
-    gDebug.pitchTerm = angleControl;
-    gDebug.speedTerm = speedControl;
-    gDebug.desiredPitchDeg = AppConfig::PID::kPitchSetpointDeg;
-    gDebug.gyroTerm = gyroPid.compute(turnTarget, wheelTurnRate, dt);
-
-    const float lqrOutput = angleControl + gyroControl + distanceControl + speedControl;
-    gDebug.balanceTorque = lqrOutput;
-
-    const float balanceVelocity = lqrOutput * kAngleOutputToWheelVelocityScale;
-    const float turnVelocity = gDebug.gyroTerm * kTurnOutputToWheelVelocityScale;
-
-    float leftCmd = balanceVelocity - turnVelocity;
-    float rightCmd = balanceVelocity + turnVelocity;
-
-    gDebug.leftTorqueCmd = clampValue(leftCmd,
-                    -AppConfig::XboxController::kMaxMotorVelocity,
-                    AppConfig::XboxController::kMaxMotorVelocity);
-    gDebug.rightTorqueCmd = clampValue(rightCmd,
-                     -AppConfig::XboxController::kMaxMotorVelocity,
-                     AppConfig::XboxController::kMaxMotorVelocity);
+  gDebug.leftTorqueCmd = clampValue(leftCmd,
+                                    -AppConfig::XboxController::kMaxMotorVelocity,
+                                    AppConfig::XboxController::kMaxMotorVelocity);
+  gDebug.rightTorqueCmd = clampValue(rightCmd,
+                                     -AppConfig::XboxController::kMaxMotorVelocity,
+                                     AppConfig::XboxController::kMaxMotorVelocity);
                 
                      
                 
                      
   // === Secondary joint angle control: A-button gated jump sequence ===
   // 1. Read current joint motor positions
-  const float motor1Pos = MotorControl::getMotorPosition(AppConfig::Motor::kJointMotorLeftNodeId);
-  // 2. Update jump state machine to get target angle (sneak -> jump -> airborne -> idle)
-  const float targetJointAngleFromStateMachine = updateJumpStateMachine(aPressed, motor1Pos, imuData, nowMs);
+  // 2. Update jump state machine to get target angle (crouch -> launch -> recover)
+  const float targetJointAngleFromStateMachine = updateJumpStateMachine(aPressed, nowMs);
 
   // 3. Command the exact jump-state target and let motor position mode track it.
   gDebug.legAngleCmd = clampValue(targetJointAngleFromStateMachine,
@@ -564,7 +474,7 @@ void process(const ImuData& imuData,
                                   AppConfig::Motor::kMaxJointAngle);
 
   float jumpVelocity = 0.0f;
-  if (jumpState == JUMP_JUMPING && (nowMs - jumpStateStartTimeMs) <= AppConfig::Motor::kJumpVelocityKickMs) {
+  if (jumpState == JUMP_LAUNCH && (nowMs - jumpStateStartTimeMs) <= AppConfig::Motor::kJumpVelocityKickMs) {
     jumpVelocity = AppConfig::Motor::kJumpJointVelocityTurnsPerSec;
     const float jointAngle = MotorControl::getJointAngleRad(AppConfig::Motor::kJointMotorLeftNodeId);
     const float angleErrorRad = fabsf(gDebug.legAngleCmd - jointAngle);

@@ -9,32 +9,33 @@ constexpr float kOutputRampPerSecond = 80.0f;
 constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
-constexpr float kPitchPidKp = 100.0f;
+// Balance output is mapped directly to wheel velocity (turns/sec).
+constexpr float kPitchPidKp = 0.35f;
 constexpr float kPitchPidKi = 0.0f;
-constexpr float kPitchPidKd = 30.0f;
+constexpr float kPitchPidKd = 0.0f;
 
-constexpr float kPitchRatePidKp = 0.06f;
+// Pitch-rate damping (deg/s -> turns/sec).
+constexpr float kPitchRatePidKp = 0.02f;
 constexpr float kPitchRatePidKi = 0.0f;
 constexpr float kPitchRatePidKd = 0.0f;
 
-constexpr float kGyroPidKp = 8.0f;
+// Turn-rate controller (turns/sec target -> turns/sec output).
+constexpr float kGyroPidKp = 1.0f;
 constexpr float kGyroPidKi = 0.0f;
 constexpr float kGyroPidKd = 0.0f;
 
-constexpr float kSpeedPidKp = 2.0f;
+// Speed loop outputs desired pitch offset (deg).
+constexpr float kSpeedPidKp = 0.8f;
 constexpr float kSpeedPidKi = 0.0f;
-constexpr float kSpeedPidKd = 2.0f;
+constexpr float kSpeedPidKd = 0.0f;
 
-constexpr float kDistancePidKp = 0.5f;
-constexpr float kDistancePidKi = 0.0f;
-constexpr float kDistancePidKd = 0.0f;
-
-constexpr float kAnglePidOutputMin = -120.0f;
-constexpr float kAnglePidOutputMax = 120.0f;
-constexpr float kSpeedPidOutputMin = -30.0f;
-constexpr float kSpeedPidOutputMax = 30.0f;
-constexpr float kTurnPidOutputMin = -60.0f;
-constexpr float kTurnPidOutputMax = 60.0f;
+constexpr float kAnglePidOutputMin = -6.0f;
+constexpr float kAnglePidOutputMax = 6.0f;
+constexpr float kSpeedPidOutputMin = -8.0f;
+constexpr float kSpeedPidOutputMax = 8.0f;
+constexpr float kTurnPidOutputMin = -4.0f;
+constexpr float kTurnPidOutputMax = 4.0f;
+constexpr float kMaxLeanDeg = 10.0f;
 constexpr float kStickTargetMax = 127.0f;
 // Small deadbands to prevent jitter-induced wheel drift.
 constexpr float kPitchErrorDeadbandDeg = 0.75f;
