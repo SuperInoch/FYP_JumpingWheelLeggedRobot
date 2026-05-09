@@ -10,7 +10,7 @@ constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
 // Balance output is mapped directly to wheel velocity (turns/sec). (battery-->)
-constexpr float kPitchPidKp = 0.6f;
+constexpr float kPitchPidKp = 5.0f;
 constexpr float kPitchPidKi = 0.0f;
 constexpr float kPitchPidKd = 0.000005f;
 
@@ -20,17 +20,17 @@ constexpr float kPitchRatePidKi = 0.0f;
 constexpr float kPitchRatePidKd = 0.000005f;
 
 // Turn-rate controller (turns/sec target -> turns/sec output).
-constexpr float kGyroPidKp = 1.0f;
+constexpr float kGyroPidKp = 5.0f;
 constexpr float kGyroPidKi = 0.0f;
 constexpr float kGyroPidKd = 0.0f;
 
 // Speed loop outputs desired pitch offset (deg). (controller speed)
-constexpr float kSpeedPidKp =  500.0f;
+constexpr float kSpeedPidKp =  100.0f;
 constexpr float kSpeedPidKi =  0.0f;
 constexpr float kSpeedPidKd =  0.0f;
 
-constexpr float kAnglePidOutputMin = -6.0f;
-constexpr float kAnglePidOutputMax = 6.0f;
+constexpr float kAnglePidOutputMin = -6.0f;  // Restored for full speed range
+constexpr float kAnglePidOutputMax = 6.0f;   // Restored for full speed range
 constexpr float kSpeedPidOutputMin = -8.0f;
 constexpr float kSpeedPidOutputMax = 8.0f;
 constexpr float kTurnPidOutputMin = -4.0f;
@@ -78,7 +78,7 @@ constexpr unsigned char kWheelMotorRightNodeId = 0x04;  // motor 4
 constexpr float kJointGearRatio = 8.0f;
 // Joint hold gains during balancing.
 constexpr float kJointKp = 60.0f;
-constexpr float kJointKd = 0.0f;
+constexpr float kJointKd = 2.0f;
 
 // Joint angle tuning is authored in degrees.
 // Motor 1 physical reference:

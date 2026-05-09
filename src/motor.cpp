@@ -62,6 +62,14 @@ float joint1ZeroTurns = 0.0f;
 float joint2ZeroTurns = 0.0f;
 bool jointZeroCaptured = false;
 
+// Wheel velocity ramping to prevent shock/buzzing at zero position
+constexpr float kWheelVelocityRampPerSecond = 10.0f;  // turns/sec/sec - increased for responsive control
+float wheelLeftVelTarget = 0.0f;
+float wheelLeftVelRamped = 0.0f;
+float wheelRightVelTarget = 0.0f;
+float wheelRightVelRamped = 0.0f;
+unsigned long lastRampUpdateMs = 0;
+
 // ODriveCAN objects for each motor (accessed by onCanMessage in global scope)
 HardwareCAN& canIntf = CAN;
 ODriveCAN* odrives[kMotorCount] = {nullptr};
@@ -410,6 +418,32 @@ bool begin() {
     return true;
 }
 
+// Ramps wheel velocities smoothly to avoid shock/buzzing
+void updateWheelVelocityRamp() {
+    const unsigned long nowMs = millis();
+    const unsigned long dtMs = (lastRampUpdateMs == 0) ? 1 : (nowMs - lastRampUpdateMs);
+    lastRampUpdateMs = nowMs;
+    
+    const float dtSec = dtMs * 1e-3f;
+    const float maxDelta = kWheelVelocityRampPerSecond * dtSec;
+    
+    // Ramp left wheel
+    float deltaLeft = wheelLeftVelTarget - wheelLeftVelRamped;
+    if (fabsf(deltaLeft) > maxDelta) {
+        wheelLeftVelRamped += (deltaLeft > 0) ? maxDelta : -maxDelta;
+    } else {
+        wheelLeftVelRamped = wheelLeftVelTarget;
+    }
+    
+    // Ramp right wheel
+    float deltaRight = wheelRightVelTarget - wheelRightVelRamped;
+    if (fabsf(deltaRight) > maxDelta) {
+        wheelRightVelRamped += (deltaRight > 0) ? maxDelta : -maxDelta;
+    } else {
+        wheelRightVelRamped = wheelRightVelTarget;
+    }
+}
+
 // Pumps bus traffic and transmits the current command set to all enabled motors.
 void update() {
     if (!motorReady) {
@@ -418,6 +452,17 @@ void update() {
     
     // Process incoming CAN messages (heartbeats, feedback)
     pumpEvents(canIntf);
+    
+    // Update ramped wheel velocities
+    updateWheelVelocityRamp();
+    
+    // Apply ramped velocity to command structure for wheels
+    if (motorEnabled[2] && odrives[2] != nullptr) {
+        commands[2].velocity = wheelLeftVelRamped * AppConfig::Motor::kWheelLeftSign;
+    }
+    if (motorEnabled[3] && odrives[3] != nullptr) {
+        commands[3].velocity = wheelRightVelRamped * AppConfig::Motor::kWheelRightSign;
+    }
     
     // Send position commands to each enabled motor
     for (int i = 0; i < kMotorCount; ++i) {
@@ -538,22 +583,29 @@ bool setWheelTorques(float leftTorque, float rightTorque) {
 bool setWheelVelocities(float leftVelocity, float rightVelocity) {
     const float left = clampValue(leftVelocity,
                                   -AppConfig::XboxController::kMaxMotorVelocity,
-                                  AppConfig::XboxController::kMaxMotorVelocity) *
-                       AppConfig::Motor::kWheelLeftSign;
+                                  AppConfig::XboxController::kMaxMotorVelocity);
     const float right = clampValue(rightVelocity,
                                    -AppConfig::XboxController::kMaxMotorVelocity,
-                                   AppConfig::XboxController::kMaxMotorVelocity) *
-                        AppConfig::Motor::kWheelRightSign;
+                                   AppConfig::XboxController::kMaxMotorVelocity);
 
+    // Store target velocities for ramping (signs applied during update)
+    wheelLeftVelTarget = left;
+    wheelRightVelTarget = right;
+
+    // Initialize ramped velocities on first call
+    if (lastRampUpdateMs == 0) {
+        wheelLeftVelRamped = left;
+        wheelRightVelRamped = right;
+    }
+
+    // Setup command structure (velocity will be overwritten during update with ramped value)
     commands[2].position = 0.0f;
-    commands[2].velocity = left;
     commands[2].kp = 0.0f;
     commands[2].kd = 0.0f;
     commands[2].torque = 0.0f;
     commands[2].velocityMode = true;
 
     commands[3].position = 0.0f;
-    commands[3].velocity = right;
     commands[3].kp = 0.0f;
     commands[3].kd = 0.0f;
     commands[3].torque = 0.0f;
