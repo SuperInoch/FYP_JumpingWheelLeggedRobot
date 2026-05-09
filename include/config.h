@@ -25,7 +25,7 @@ constexpr float kGyroPidKi = 0.0f;
 constexpr float kGyroPidKd = 0.0f;
 
 // Speed loop outputs desired pitch offset (deg). (controller speed)
-constexpr float kSpeedPidKp =  100.0f;
+constexpr float kSpeedPidKp =  120.0f;
 constexpr float kSpeedPidKi =  0.0f;
 constexpr float kSpeedPidKd =  0.0f;
 
