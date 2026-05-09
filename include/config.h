@@ -10,7 +10,7 @@ constexpr float kPitchSetpointDeg = 0.0f;
 
 // Match PID folder gains: angle + speed + turn loops.
 // Balance output is mapped directly to wheel velocity (turns/sec). (battery-->)
-constexpr float kPitchPidKp = 5.0f;
+constexpr float kPitchPidKp = 1.0f;
 constexpr float kPitchPidKi = 0.0f;
 constexpr float kPitchPidKd = 0.000005f;
 
