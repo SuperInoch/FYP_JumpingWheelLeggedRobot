@@ -406,6 +406,7 @@ void process(const ImuData& imuData,
   float joyY = axisToUnit(xboxData.leftStickY, AppConfig::XboxController::kStickDeadband);
 
   joyY = -joyY;
+  joyY = clampValue(joyY + AppConfig::XboxController::kForwardBias, -1.0f, 1.0f);
 
   const float turbo = rbPressed ? AppConfig::XboxController::kTurboScale : 1.0f;
 

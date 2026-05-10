@@ -6,18 +6,18 @@
 namespace AppConfig {
 namespace PID {
 constexpr float kOutputRampPerSecond = 80.0f;
-constexpr float kPitchSetpointDeg = 0.0f;
+constexpr float kPitchSetpointDeg = 0.0f;  // Keep 0; use IMU offset to bias balance point.
 
 // Match PID folder gains: angle + speed + turn loops.
 // Balance output is mapped directly to wheel velocity (turns/sec). (battery-->)
 constexpr float kPitchPidKp = 1.0f;
 constexpr float kPitchPidKi = 0.0f;
-constexpr float kPitchPidKd = 0.000005f;
+constexpr float kPitchPidKd = 0.0f;
 
 // Pitch-rate damping (deg/s -> turns/sec). (PCB-->)
 constexpr float kPitchRatePidKp = -0.5f;
 constexpr float kPitchRatePidKi = 0.0f;
-constexpr float kPitchRatePidKd = 0.000005f;
+constexpr float kPitchRatePidKd = 0.0f;
 
 // Turn-rate controller (turns/sec target -> turns/sec output).
 constexpr float kGyroPidKp = 5.0f;
@@ -25,7 +25,7 @@ constexpr float kGyroPidKi = 0.0f;
 constexpr float kGyroPidKd = 0.0f;
 
 // Speed loop outputs desired pitch offset (deg). (controller speed)
-constexpr float kSpeedPidKp =  120.0f;
+constexpr float kSpeedPidKp =  100.0f;
 constexpr float kSpeedPidKi =  0.0f;
 constexpr float kSpeedPidKd =  0.0f;
 
@@ -129,7 +129,7 @@ constexpr float kAccCoef = 0.1f;
 constexpr float kGyroCoef = 0.9f;
 constexpr float kGyroYLowPassAlpha = 0.05f;
 constexpr float kGyroZDeadband = 1.0f;
-constexpr float kRemoteBalanceOffsetDeg = 0.0f;
+constexpr float kRemoteBalanceOffsetDeg = 0.0f; // Forward balance offset to match CG (tune 2-5 deg)
 
 constexpr long kMapInputMin = -17000;
 constexpr long kMapInputMax = 17000;
@@ -156,6 +156,8 @@ constexpr float kMaxTurningVelocity = 4.0f;    // turns/second for turning
 constexpr float kForwardScale = 1.0f;
 constexpr float kTurnScale = 0.8f;
 constexpr float kTurboScale = 1.4f;
+// Constant forward bias applied to joystick Y (unit range -1..1).
+constexpr float kForwardBias = 0.3f; // Tune 0.05..0.30 to hold balance hands-free.
 
 // Bit mapping in packet byte 7 from ESP32 sender.
 constexpr uint8_t kButtonABit = 0;
