@@ -31,11 +31,11 @@ constexpr float kSpeedPidKd =  0.0f;
 
 constexpr float kAnglePidOutputMin = -6.0f;  // Restored for full speed range
 constexpr float kAnglePidOutputMax = 6.0f;   // Restored for full speed range
-constexpr float kSpeedPidOutputMin = -8.0f;
-constexpr float kSpeedPidOutputMax = 8.0f;
+constexpr float kSpeedPidOutputMin = -10.0f;
+constexpr float kSpeedPidOutputMax = 10.0f;
 constexpr float kTurnPidOutputMin = -4.0f;
 constexpr float kTurnPidOutputMax = 4.0f;
-constexpr float kMaxLeanDeg = 10.0f;
+constexpr float kMaxLeanDeg = 12.0f;
 constexpr float kStickTargetMax = 127.0f;
 // Small deadbands to prevent jitter-induced wheel drift.
 constexpr float kPitchErrorDeadbandDeg = 0.75f;
@@ -129,7 +129,7 @@ constexpr float kAccCoef = 0.1f;
 constexpr float kGyroCoef = 0.9f;
 constexpr float kGyroYLowPassAlpha = 0.05f;
 constexpr float kGyroZDeadband = 1.0f;
-constexpr float kRemoteBalanceOffsetDeg = 0.0f; // Forward balance offset to match CG (tune 2-5 deg)
+constexpr float kRemoteBalanceOffsetDeg = -2.0f; // Set from level measurement so pitch reads ~0.
 
 constexpr long kMapInputMin = -17000;
 constexpr long kMapInputMax = 17000;
@@ -157,7 +157,7 @@ constexpr float kForwardScale = 1.0f;
 constexpr float kTurnScale = 0.8f;
 constexpr float kTurboScale = 1.4f;
 // Constant forward bias applied to joystick Y (unit range -1..1).
-constexpr float kForwardBias = 0.3f; // Tune 0.05..0.30 to hold balance hands-free.
+constexpr float kForwardBias = 0.15f; // Set non-zero (try -0.05 or 0.05) for hands-free balance.
 
 // Bit mapping in packet byte 7 from ESP32 sender.
 constexpr uint8_t kButtonABit = 0;
