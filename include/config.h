@@ -5,7 +5,7 @@
 
 namespace AppConfig {
 namespace PID {
-constexpr float kOutputRampPerSecond = 80.0f;
+constexpr float kOutputRampPerSecond = 1500.0f;
 constexpr float kPitchSetpointDeg = 0.0f;  // Keep 0; use IMU offset to bias balance point.
 
 // Match PID folder gains: angle + speed + turn loops.
@@ -31,11 +31,11 @@ constexpr float kSpeedPidKd =  0.0f;
 
 constexpr float kAnglePidOutputMin = -6.0f;  // Restored for full speed range
 constexpr float kAnglePidOutputMax = 6.0f;   // Restored for full speed range
-constexpr float kSpeedPidOutputMin = -10.0f;
-constexpr float kSpeedPidOutputMax = 10.0f;
+constexpr float kSpeedPidOutputMin = -7.0f;
+constexpr float kSpeedPidOutputMax = 7.0f;
 constexpr float kTurnPidOutputMin = -4.0f;
 constexpr float kTurnPidOutputMax = 4.0f;
-constexpr float kMaxLeanDeg = 12.0f;
+constexpr float kMaxLeanDeg = 30.0f;
 constexpr float kStickTargetMax = 127.0f;
 // Small deadbands to prevent jitter-induced wheel drift.
 constexpr float kPitchErrorDeadbandDeg = 0.75f;
@@ -91,7 +91,7 @@ constexpr float kRadToDeg = 180.0f / PI;
 // Common default pose offset from zero pose.
 // Positive = anti-clockwise for motor 1 (motor 2 is mirrored negative).
 constexpr float kDefaultFromZero = -10.0f * PI / 180.0f;
-constexpr float kJoint1Trim = -1.0f * PI / 180.0f;
+constexpr float kJoint1Trim = -1.1f * PI / 180.0f;
 constexpr float kJoint2Trim = 0.0f;
 constexpr float kStartupZeroPoseToleranceTurns = 0.05f;
 
